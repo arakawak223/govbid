@@ -44,10 +44,6 @@ class MiyazakiScraper(BaseScraper):
                     announcement_url=full_url,
                     source_url=self.bid_list_url,
                 )
-
-                # Fetch detailed page to get accurate dates
-                bid = await self.fetch_bid_details(bid)
-
                 bids.append(bid)
 
         return bids

@@ -40,19 +40,12 @@ class FukuokaCityScraper(BaseScraper):
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託", "提案"]):
                 full_url = href if href.startswith("http") else f"{self.base_url}{href}"
 
-                # Extract deadline from title first
-                deadline = self.extract_deadline_from_title(text)
-
                 bid = BidInfo(
                     title=text,
                     municipality=self.municipality_name,
                     announcement_url=full_url,
                     source_url=self.bid_list_url,
-                    application_end=deadline,
                 )
-
-                # Fetch detailed page to get accurate dates
-                bid = await self.fetch_bid_details(bid)
 
                 bids.append(bid)
 
