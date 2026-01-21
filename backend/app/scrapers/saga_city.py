@@ -35,7 +35,14 @@ class SagaCityScraper(BaseScraper):
                 if any(exclude in text for exclude in ["イベント", "参加者", "セミナー", "講座", "ボランティア"]):
                     continue
 
-                full_url = href if href.startswith("http") else f"{self.base_url}{href}"
+                if href.startswith("http"):
+                    full_url = href
+                elif href.startswith("./"):
+                    full_url = f"{self.base_url}/{href[2:]}"
+                elif href.startswith("/"):
+                    full_url = f"{self.base_url}{href}"
+                else:
+                    full_url = f"{self.base_url}/{href}"
 
                 bid = BidInfo(
                     title=text,

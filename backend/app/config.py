@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     request_delay_seconds: float = 1.5
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["*"]
 
     class Config:
         env_file = ".env"

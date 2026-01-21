@@ -37,7 +37,12 @@ class FukuokaPrefScraper(BaseScraper):
 
             # Check if this looks like a bid announcement
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託"]):
-                full_url = href if href.startswith("http") else f"{self.base_url}{href}"
+                if href.startswith("http"):
+                    full_url = href
+                elif href.startswith("/"):
+                    full_url = f"{self.base_url}{href}"
+                else:
+                    full_url = f"{self.base_url}/{href}"
 
                 bid = BidInfo(
                     title=text,

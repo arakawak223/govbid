@@ -54,6 +54,42 @@ def is_relevant_bid(title: str) -> bool:
     return categorize_bid(title) is not None
 
 
+# 除外パターン（ナビゲーション、工事関連、広告募集、結果ページ等）
+EXCLUDE_PATTERNS = [
+    # ナビゲーション・UI要素
+    "ホームページ", "このホームページについて",
+    "メニューを飛ばして", "本文へ", "Other Languages",
+    "サイトマップ", "お問い合わせ", "アクセス",
+    # 工事関連
+    "公共工事", "工事入札", "入札・契約（工事",
+    # 広告募集（案件ではなく広告枠の募集）
+    "広告を募集します", "広告主を募集", "広告付き",
+    # イベント参加者募集（入札案件ではない）
+    "イベント・講座・募集",
+    # 結果・回答（案件ではなく結果報告）
+    "【審査結果】", "【入札結果】", "【選定結果】",
+    "委託先が決まりました", "が決定しました",
+    "質問書への回答", "質問への回答",
+    # その他の除外
+    "入札参加資格", "再生資源売却",
+]
+
+
+def should_exclude(title: str) -> bool:
+    """Check if a bid should be excluded based on title patterns
+
+    Args:
+        title: The bid title to check
+
+    Returns:
+        True if the bid should be excluded, False otherwise
+    """
+    for pattern in EXCLUDE_PATTERNS:
+        if pattern in title:
+            return True
+    return False
+
+
 def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
     """Filter and categorize bids based on keywords
 
@@ -66,6 +102,10 @@ def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
     filtered = []
 
     for bid in bids:
+        # 除外パターンに該当する場合はスキップ
+        if should_exclude(bid.title):
+            continue
+
         category = categorize_bid(bid.title)
         if category:
             bid.category = category

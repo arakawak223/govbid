@@ -43,7 +43,12 @@ class SagaScraper(BaseScraper):
                     if not any(k in text for k in ["公募", "募集", "プロポーザル"]):
                         continue
 
-                full_url = href if href.startswith("http") else f"{self.base_url}{href}"
+                if href.startswith("http"):
+                    full_url = href
+                elif href.startswith("/"):
+                    full_url = f"{self.base_url}{href}"
+                else:
+                    full_url = f"{self.base_url}/{href}"
 
                 bid = BidInfo(
                     title=text,

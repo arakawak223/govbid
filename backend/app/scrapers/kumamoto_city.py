@@ -40,6 +40,14 @@ class KumamotoCityScraper(BaseScraper):
             if "list" in href.lower() and not any(k in text for k in ["公募", "入札", "プロポーザル"]):
                 continue
 
+            # 除外パターン
+            exclude_patterns = [
+                "ホームページ", "ホームページについて", "公共工事", "工事入札",
+                "入札・契約（工事", "広告を募集", "イベント・講座・募集"
+            ]
+            if any(pattern in text for pattern in exclude_patterns):
+                continue
+
             full_url = href if href.startswith("http") else f"{self.base_url}{href}"
 
             bid = BidInfo(

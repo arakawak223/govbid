@@ -32,7 +32,10 @@ class OitaCityScraper(BaseScraper):
                 continue
 
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託", "提案"]):
-                if any(exclude in text for exclude in ["質問について", "回答", "結果", "選定結果"]):
+                if any(exclude in text for exclude in [
+                    "質問について", "回答", "結果", "選定結果",
+                    "ホームページ", "公共工事", "工事入札", "広告を募集"
+                ]):
                     continue
 
                 full_url = href if href.startswith("http") else f"{self.base_url}{href}"
