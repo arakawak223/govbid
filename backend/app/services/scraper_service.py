@@ -11,14 +11,21 @@ from app.scrapers.fukuoka_pref import FukuokaPrefScraper
 from app.scrapers.fukuoka_city import FukuokaCityScraper
 from app.scrapers.kitakyushu import KitakyushuScraper
 from app.scrapers.saga import SagaScraper
+from app.scrapers.saga_city import SagaCityScraper
 from app.scrapers.nagasaki import NagasakiScraper
+from app.scrapers.nagasaki_city import NagasakiCityScraper
 from app.scrapers.kumamoto_pref import KumamotoPrefScraper
 from app.scrapers.kumamoto_city import KumamotoCityScraper
 from app.scrapers.oita import OitaScraper
+from app.scrapers.oita_city import OitaCityScraper
 from app.scrapers.miyazaki import MiyazakiScraper
+from app.scrapers.miyazaki_city import MiyazakiCityScraper
 from app.scrapers.kagoshima import KagoshimaScraper
+from app.scrapers.kagoshima_city import KagoshimaCityScraper
 from app.scrapers.okinawa import OkinawaScraper
+from app.scrapers.naha_city import NahaCityScraper
 from app.scrapers.yamaguchi import YamaguchiScraper
+from app.scrapers.yamaguchi_city import YamaguchiCityScraper
 from app.services.filter_service import filter_bids
 
 logger = logging.getLogger(__name__)
@@ -29,14 +36,21 @@ SCRAPERS: list[Type[BaseScraper]] = [
     FukuokaCityScraper,
     KitakyushuScraper,
     SagaScraper,
+    SagaCityScraper,
     NagasakiScraper,
+    NagasakiCityScraper,
     KumamotoPrefScraper,
     KumamotoCityScraper,
     OitaScraper,
+    OitaCityScraper,
     MiyazakiScraper,
+    MiyazakiCityScraper,
     KagoshimaScraper,
+    KagoshimaCityScraper,
     OkinawaScraper,
+    NahaCityScraper,
     YamaguchiScraper,
+    YamaguchiCityScraper,
 ]
 
 
