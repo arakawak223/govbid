@@ -90,7 +90,7 @@ export default function Home() {
             <div className="text-sm text-gray-600">
               {total > 0 ? `${total}件の案件が見つかりました` : ""}
             </div>
-            <ExportButton bids={bids} />
+            <ExportButton filters={filters} total={total} />
           </div>
 
           <BidTable bids={bids} loading={loading} />

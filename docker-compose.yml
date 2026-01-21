@@ -13,7 +13,7 @@ services:
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./data/govbid.db
       - DEBUG=true
-      - CORS_ORIGINS=["http://localhost:3000"]
+      - CORS_ORIGINS=["http://localhost:3000","https://verbose-space-fiesta-vp64vgpxg5r2w75r-3000.app.github.dev","https://verbose-space-fiesta-vp64vgpxg5r2w75r-8000.app.github.dev"]
     env_file:
       - ./backend/.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -29,7 +29,7 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=https://verbose-space-fiesta-vp64vgpxg5r2w75r-8000.app.github.dev
     depends_on:
       - backend
     command: npm run dev

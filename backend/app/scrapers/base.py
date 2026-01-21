@@ -65,7 +65,12 @@ class BaseScraper(ABC):
         if not date_str:
             return None
 
+        import re
         date_str = date_str.strip()
+
+        # Convert full-width numbers to half-width
+        full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
+        date_str = date_str.translate(full_to_half)
 
         # Common formats
         formats = [
@@ -76,10 +81,9 @@ class BaseScraper(ABC):
             "令和%Y年%m月%d日",
         ]
 
-        # Handle 令和 (Reiwa era)
+        # Handle 令和 (Reiwa era) - supports formats like "令和8年1月28日" or "令和8年（2026年）1月28日"
         if "令和" in date_str:
-            import re
-            match = re.search(r'令和(\d+)年(\d+)月(\d+)日', date_str)
+            match = re.search(r'令和(\d+)年[^月]*?(\d+)月(\d+)日', date_str)
             if match:
                 year = int(match.group(1)) + 2018  # 令和1年 = 2019年
                 month = int(match.group(2))
@@ -88,6 +92,14 @@ class BaseScraper(ABC):
                     return date(year, month, day)
                 except ValueError:
                     pass
+
+        # Handle western year format: 2026年1月28日
+        match = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', date_str)
+        if match:
+            try:
+                return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+            except ValueError:
+                pass
 
         for fmt in formats:
             try:
@@ -104,21 +116,32 @@ class BaseScraper(ABC):
             return None
 
         import re
-        # Remove non-numeric characters except for 万, 億
         amount_str = amount_str.strip()
 
-        # Handle 万 (10,000) and 億 (100,000,000)
+        # Convert full-width numbers to half-width
+        full_to_half = str.maketrans('０１２３４５６７８９，', '0123456789,')
+        amount_str = amount_str.translate(full_to_half)
+
+        # Handle 億 (100,000,000)
         if "億" in amount_str:
             match = re.search(r'([\d,.]+)\s*億', amount_str)
             if match:
                 num = float(match.group(1).replace(",", ""))
                 return int(num * 100_000_000)
 
+        # Handle 万 (10,000)
         if "万" in amount_str:
             match = re.search(r'([\d,.]+)\s*万', amount_str)
             if match:
                 num = float(match.group(1).replace(",", ""))
                 return int(num * 10_000)
+
+        # Handle 千 (1,000) - e.g., "7,800千円"
+        if "千" in amount_str:
+            match = re.search(r'([\d,]+)\s*千', amount_str)
+            if match:
+                num = float(match.group(1).replace(",", ""))
+                return int(num * 1_000)
 
         # Extract numeric value
         match = re.search(r'([\d,]+)', amount_str)

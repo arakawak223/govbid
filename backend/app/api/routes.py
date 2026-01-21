@@ -111,7 +111,7 @@ async def get_bids(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=1000),
     municipality: str | None = None,
     category: str | None = None,
     status_filter: str | None = Query(None, alias="status"),

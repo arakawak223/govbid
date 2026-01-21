@@ -1,15 +1,35 @@
 "use client";
 
-import { Download } from "lucide-react";
-import type { Bid } from "@/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import type { Bid, BidFilter } from "@/types";
+import { bidsApi } from "@/lib/api";
 
 interface ExportButtonProps {
-  bids: Bid[];
+  filters: BidFilter;
+  total: number;
 }
 
-export default function ExportButton({ bids }: ExportButtonProps) {
-  const exportToCSV = () => {
+export default function ExportButton({ filters, total }: ExportButtonProps) {
+  const [exporting, setExporting] = useState(false);
+
+  const exportToCSV = async () => {
+    setExporting(true);
+    try {
+      // 全件を取得（per_pageを大きくして1回で取得）
+      const response = await bidsApi.getList(1, Math.max(total, 1000), filters);
+      const bids = response.items;
+
+      generateCSV(bids);
+    } catch (error) {
+      console.error("Failed to fetch all bids for export:", error);
+      alert("エクスポートに失敗しました");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const generateCSV = (bids: Bid[]) => {
     const headers = [
       "案件タイトル",
       "自治体",
@@ -68,11 +88,20 @@ export default function ExportButton({ bids }: ExportButtonProps) {
   return (
     <button
       onClick={exportToCSV}
-      disabled={bids.length === 0}
+      disabled={total === 0 || exporting}
       className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      <Download className="h-4 w-4" />
-      CSVエクスポート
+      {exporting ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          エクスポート中...
+        </>
+      ) : (
+        <>
+          <Download className="h-4 w-4" />
+          全{total}件をCSVエクスポート
+        </>
+      )}
     </button>
   );
 }
