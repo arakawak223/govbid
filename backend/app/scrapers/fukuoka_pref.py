@@ -37,6 +37,13 @@ class FukuokaPrefScraper(BaseScraper):
 
             # Check if this looks like a bid announcement
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託"]):
+                # 除外パターン（質問回答、結果ページ）
+                if any(ex in text for ex in [
+                    "質問への回答", "質問に対する回答", "質問回答", "質問と回答", "質問・回答", "質問及び回答",
+                    "審査結果", "選定結果", "結果について", "の結果", "決定について", "を決定しました", "決定しました",
+                    "意見募集", "パブリックコメント"
+                ]):
+                    continue
                 if href.startswith("http"):
                     full_url = href
                 elif href.startswith("/"):
@@ -51,52 +58,8 @@ class FukuokaPrefScraper(BaseScraper):
                     source_url=self.bid_list_url,
                 )
 
-                # Try to get more details from the detail page
-                detail_soup = await self.fetch_page(full_url)
-                if detail_soup:
-                    self._parse_detail_page(bid, detail_soup)
-
-                bids.append(bid)
+                # Try to get more details from the detail page (with update date filter)
+                if await self.enrich_bid_from_detail(bid):
+                    bids.append(bid)
 
         return bids
-
-    def _parse_detail_page(self, bid: BidInfo, soup: BeautifulSoup) -> None:
-        """Parse additional information from the detail page"""
-        # Look for deadline/application period
-        text = soup.get_text()
-
-        # Look for date patterns
-        import re
-
-        # Application deadline
-        deadline_match = re.search(
-            r'(?:提出期限|申込期限|締切|応募期限)[：:]\s*(.+?)(?:\n|$)',
-            text
-        )
-        if deadline_match:
-            bid.application_end = self.parse_date(deadline_match.group(1))
-
-        # Application start
-        start_match = re.search(
-            r'(?:公告日|募集開始|公募開始)[：:]\s*(.+?)(?:\n|$)',
-            text
-        )
-        if start_match:
-            bid.application_start = self.parse_date(start_match.group(1))
-
-        # Contract period
-        period_match = re.search(
-            r'(?:履行期間|契約期間|業務期間)[：:]\s*(.+?)(?:から|～|~)\s*(.+?)(?:\n|$)',
-            text
-        )
-        if period_match:
-            bid.period_start = self.parse_date(period_match.group(1))
-            bid.period_end = self.parse_date(period_match.group(2))
-
-        # Amount
-        amount_match = re.search(
-            r'(?:上限額|予定価格|委託料)[：:]\s*([\d,万億円]+)',
-            text
-        )
-        if amount_match:
-            bid.max_amount = self.parse_amount(amount_match.group(1))

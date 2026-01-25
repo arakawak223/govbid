@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Type
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Bid
@@ -63,6 +63,11 @@ async def run_all_scrapers(db: AsyncSession) -> dict:
     Returns:
         Summary of scraping results
     """
+    # Delete all existing bids before fresh scrape
+    await db.execute(delete(Bid))
+    await db.commit()
+    logger.info("Cleared existing bids for fresh scrape")
+
     results = {
         "total_scraped": 0,
         "total_filtered": 0,
@@ -124,6 +129,11 @@ async def run_single_scraper(db: AsyncSession, municipality: str) -> dict:
     """
     for scraper_class in SCRAPERS:
         if scraper_class.municipality_name == municipality:
+            # Delete existing bids for this municipality before scrape
+            await db.execute(delete(Bid).where(Bid.municipality == municipality))
+            await db.commit()
+            logger.info(f"Cleared existing bids for {municipality}")
+
             scraper = scraper_class()
             try:
                 raw_bids = await scraper.scrape()

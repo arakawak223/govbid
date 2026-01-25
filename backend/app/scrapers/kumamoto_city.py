@@ -43,7 +43,10 @@ class KumamotoCityScraper(BaseScraper):
             # 除外パターン
             exclude_patterns = [
                 "ホームページ", "ホームページについて", "公共工事", "工事入札",
-                "入札・契約（工事", "広告を募集", "イベント・講座・募集"
+                "入札・契約（工事", "広告を募集", "イベント・講座・募集",
+                "質問への回答", "質問に対する回答", "質問回答", "質問書への回答", "質問と回答", "質問・回答", "質問及び回答",
+                "審査結果", "選定結果", "結果について", "の結果", "決定について", "を決定しました", "決定しました",
+                "意見募集", "パブリックコメント"
             ]
             if any(pattern in text for pattern in exclude_patterns):
                 continue
@@ -56,6 +59,7 @@ class KumamotoCityScraper(BaseScraper):
                 announcement_url=full_url,
                 source_url=self.bid_list_url,
             )
-            bids.append(bid)
+            if await self.enrich_bid_from_detail(bid):
+                bids.append(bid)
 
         return bids

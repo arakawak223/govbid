@@ -44,6 +44,14 @@ class KitakyushuScraper(BaseScraper):
                 if not text or len(text) < 5:
                     continue
 
+                # 除外パターン（質問回答、結果ページ）
+                if any(ex in text for ex in [
+                    "質問への回答", "質問に対する回答", "質問回答", "質問と回答", "質問・回答", "質問及び回答",
+                    "審査結果", "選定結果", "結果について", "の結果", "決定について", "を決定しました", "決定しました",
+                    "意見募集", "パブリックコメント"
+                ]):
+                    continue
+
                 full_url = href if href.startswith("http") else f"{self.base_url}{href}"
 
                 bid = BidInfo(
@@ -60,7 +68,8 @@ class KitakyushuScraper(BaseScraper):
                         bid.application_end = self.parse_date(cell_text)
                         break
 
-                bids.append(bid)
+                if await self.enrich_bid_from_detail(bid):
+                    bids.append(bid)
 
         # Also check for list-based layouts
         lists = soup.find_all("ul", {"class": ["list", "link-list"]})
@@ -78,6 +87,7 @@ class KitakyushuScraper(BaseScraper):
                             announcement_url=full_url,
                             source_url=self.bid_list_url,
                         )
-                        bids.append(bid)
+                        if await self.enrich_bid_from_detail(bid):
+                            bids.append(bid)
 
         return bids

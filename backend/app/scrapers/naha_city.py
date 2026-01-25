@@ -32,7 +32,10 @@ class NahaCityScraper(BaseScraper):
                 continue
 
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託", "提案"]):
-                if any(exclude in text for exclude in ["質問に対する回答", "選定結果", "結果について"]):
+                if any(exclude in text for exclude in [
+                    "質問に対する回答", "質問への回答", "質問回答", "質問と回答", "質問・回答", "質問及び回答",
+                    "選定結果", "審査結果", "結果について", "の結果", "決定について", "を決定しました", "決定しました",
+                    "意見募集", "パブリックコメント"]):
                     continue
 
                 full_url = href if href.startswith("http") else f"{self.base_url}{href}"
@@ -44,6 +47,7 @@ class NahaCityScraper(BaseScraper):
                     source_url=self.bid_list_url,
                 )
 
-                bids.append(bid)
+                if await self.enrich_bid_from_detail(bid):
+                    bids.append(bid)
 
         return bids

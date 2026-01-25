@@ -150,6 +150,148 @@ class BaseScraper(ABC):
 
         return None
 
+    async def fetch_detail_page(self, url: str) -> Optional[BeautifulSoup]:
+        """Fetch a detail page and return BeautifulSoup object (with logging)"""
+        logger.debug(f"Fetching detail page: {url}")
+        soup = await self.fetch_page(url)
+        if soup:
+            logger.debug(f"Successfully fetched detail page: {url}")
+        return soup
+
+    def _parse_detail_page(self, bid: BidInfo, soup: BeautifulSoup) -> None:
+        """Parse additional information from a detail page using common Japanese patterns"""
+        import re
+        text = soup.get_text()
+
+        # Convert full-width to half-width for easier parsing
+        full_to_half = str.maketrans('０１２３４５６７８９，：', '0123456789,:')
+        normalized_text = text.translate(full_to_half)
+
+        # Application deadline: 提出期限、申込期限、締切、応募期限、提案書提出期限、参加意向申出書
+        if not bid.application_end:
+            deadline_patterns = [
+                r'(?:参加意向申出書提出期限|参加意向申出書の受付|参加申込書提出期限|提案書類?提出期限|書類提出期限|提出期限|提出期間|申込期限|応募期限|申請期限|受付期限|締切日?)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
+                r'(?:提出|申込|応募|参加申込|参加意向申出)\s*(?:期限|締切|期間)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
+            ]
+            for pattern in deadline_patterns:
+                match = re.search(pattern, normalized_text)
+                if match:
+                    parsed = self.parse_date(match.group(1))
+                    if parsed:
+                        bid.application_end = parsed
+                        break
+
+        # Application start: 公告日、募集開始、公募開始、公示日
+        if not bid.application_start:
+            start_patterns = [
+                r'(?:公告日|募集開始日?|公募開始日?|公示日|掲載日|掲示日)[：:は]?\s*[　\s]*(.+?)(?:\n|$)',
+                r'(?:公告|公示|公募)\s*(?:日|開始)[：:は]?\s*[　\s]*(.+?)(?:\n|$)',
+            ]
+            for pattern in start_patterns:
+                match = re.search(pattern, normalized_text)
+                if match:
+                    parsed = self.parse_date(match.group(1))
+                    if parsed:
+                        bid.application_start = parsed
+                        break
+
+        # Contract/implementation period: 履行期間、契約期間、業務期間、実施期間、委託期間、業務委託期間
+        if not bid.period_start or not bid.period_end:
+            period_patterns = [
+                r'(?:履行期間|契約期間|業務期間|実施期間|委託期間|事業期間|業務委託期間)[：:は]?\s*[　\s]*(.+?)(?:から|～|~|－|ー|−|〜)\s*(.+?)(?:\n|$|まで)',
+                r'(?:履行期間|契約期間|業務期間|実施期間|委託期間|事業期間|業務委託期間)[：:は]?\s*[　\s]*(.+?)(?:\n|$)',
+            ]
+            for pattern in period_patterns:
+                match = re.search(pattern, normalized_text)
+                if match:
+                    if match.lastindex >= 2:
+                        # Pattern with start and end
+                        start_parsed = self.parse_date(match.group(1))
+                        end_parsed = self.parse_date(match.group(2))
+                        if start_parsed:
+                            bid.period_start = start_parsed
+                        if end_parsed:
+                            bid.period_end = end_parsed
+                        break
+                    elif match.lastindex >= 1:
+                        # Try to find dates within the matched text
+                        period_text = match.group(1)
+                        dates = re.findall(r'(\d{4}年\d{1,2}月\d{1,2}日|令和\d+年\d{1,2}月\d{1,2}日)', period_text)
+                        if len(dates) >= 2:
+                            bid.period_start = self.parse_date(dates[0])
+                            bid.period_end = self.parse_date(dates[1])
+                            break
+                        elif len(dates) == 1:
+                            bid.period_end = self.parse_date(dates[0])
+                            break
+
+        # Amount patterns - expanded to cover more variations
+        # 契約限度金額、委託契約の限度額、上限額、予定価格、委託料、予算額、限度額、参考価格、提案限度価格
+        if not bid.max_amount:
+            amount_patterns = [
+                r'(?:提案限度価格|契約限度金額|委託契約の限度額|契約の限度額|限度額|上限額|上限金額|予定価格|委託料|予算額|参考価格|契約上限額?)[：:は]?\s*[　\s]*([\d,]+)\s*円',
+                r'([\d,]+)\s*円\s*(?:以内|を上限|が上限|（税込|（消費税)',
+            ]
+            for pattern in amount_patterns:
+                match = re.search(pattern, normalized_text)
+                if match:
+                    parsed = self.parse_amount(match.group(1) + '円')
+                    if parsed:
+                        bid.max_amount = parsed
+                        break
+
+    def _extract_update_date(self, soup: BeautifulSoup) -> Optional[date]:
+        """Extract update date from detail page (更新日)"""
+        import re
+        text = soup.get_text()
+
+        # Convert full-width to half-width
+        full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
+        text = text.translate(full_to_half)
+
+        # Common patterns for update date
+        patterns = [
+            r'更新日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'更新日[：:]\s*(\d{4}/\d{1,2}/\d{1,2})',
+            r'更新日[：:]\s*(令和\d+年\d{1,2}月\d{1,2}日)',
+            r'最終更新日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'掲載日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                parsed = self.parse_date(match.group(1))
+                if parsed:
+                    return parsed
+        return None
+
+    def _is_too_old(self, update_date: Optional[date], months: int = 1) -> bool:
+        """Check if update date is older than specified months"""
+        if not update_date:
+            return False  # If no date found, don't exclude
+
+        from datetime import timedelta
+        cutoff = date.today() - timedelta(days=months * 30)
+        return update_date < cutoff
+
+    async def enrich_bid_from_detail(self, bid: BidInfo) -> bool:
+        """Fetch detail page and enrich bid information.
+        Returns False if bid should be excluded (too old), True otherwise."""
+        if not bid.announcement_url:
+            return True
+
+        soup = await self.fetch_detail_page(bid.announcement_url)
+        if soup:
+            # Check update date first
+            update_date = self._extract_update_date(soup)
+            if self._is_too_old(update_date, months=1):
+                logger.debug(f"Excluding old bid (updated {update_date}): {bid.title[:30]}")
+                return False
+
+            self._parse_detail_page(bid, soup)
+        return True
+
     @abstractmethod
     async def scrape(self) -> list[BidInfo]:
         """Scrape bid information from the municipality website

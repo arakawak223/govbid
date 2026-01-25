@@ -35,12 +35,15 @@ class OitaScraper(BaseScraper):
             if not text or len(text) < 10:
                 continue
 
-            # 除外パターン（ナビゲーション、工事関連、結果ページ）
+            # 除外パターン（ナビゲーション、工事関連、結果ページ、質問回答）
             exclude_keywords = [
                 "ホームページ", "イベント・講座・募集", "このホームページについて",
-                "公共工事", "工事入札", "審査結果について", "広告を募集",
+                "公共工事", "工事入札", "広告を募集",
                 "メニューを飛ばして", "本文へ", "Other Languages", "サイトマップ",
-                "お問い合わせ", "アクセス", "優先交渉権者の選定について"
+                "お問い合わせ", "アクセス", "優先交渉権者の選定について",
+                "質問への回答", "質問に対する回答", "質問回答", "質問と回答", "質問・回答", "質問及び回答",
+                "審査結果", "選定結果", "結果について", "の結果", "決定について", "を決定しました", "決定しました",
+                "意見募集", "パブリックコメント"
             ]
             if any(keyword in text for keyword in exclude_keywords):
                 continue
@@ -53,6 +56,7 @@ class OitaScraper(BaseScraper):
                 announcement_url=full_url,
                 source_url=self.bid_list_url,
             )
-            bids.append(bid)
+            if await self.enrich_bid_from_detail(bid):
+                bids.append(bid)
 
         return bids
