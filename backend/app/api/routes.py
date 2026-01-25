@@ -109,7 +109,6 @@ async def update_notification_settings(
 @router.get("/bids", response_model=BidListResponse)
 async def get_bids(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=1000),
     municipality: str | None = None,
@@ -161,7 +160,6 @@ async def get_bids(
 async def get_bid(
     bid_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """入札案件詳細取得"""
     result = await db.execute(select(Bid).where(Bid.id == bid_id))
@@ -177,7 +175,6 @@ async def get_bid(
 @router.get("/municipalities", response_model=list[str])
 async def get_municipalities(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """自治体一覧取得"""
     result = await db.execute(
@@ -189,7 +186,6 @@ async def get_municipalities(
 @router.get("/categories", response_model=list[str])
 async def get_categories(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
 ):
     """カテゴリ一覧取得"""
     result = await db.execute(
@@ -205,7 +201,6 @@ async def get_categories(
 @router.post("/scrape")
 async def run_scrape(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
     municipality: str | None = None,
 ):
     """手動スクレイピング実行"""
@@ -220,9 +215,7 @@ async def run_scrape(
 
 
 @router.get("/scrape/municipalities", response_model=list[str])
-async def get_supported_municipalities(
-    current_user: Annotated[User, Depends(get_current_user)],
-):
+async def get_supported_municipalities():
     """サポートされている自治体一覧取得"""
     from app.services.scraper_service import get_municipality_names
     return get_municipality_names()

@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import BidTable from "@/components/BidTable";
 import FilterPanel from "@/components/FilterPanel";
 import ExportButton from "@/components/ExportButton";
 import Pagination from "@/components/Pagination";
-import { bidsApi, getAccessToken } from "@/lib/api";
-import type { Bid, BidFilter, BidListResponse } from "@/types";
+import { bidsApi } from "@/lib/api";
+import type { Bid, BidFilter } from "@/types";
 
 export default function Home() {
-  const router = useRouter();
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -49,19 +47,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      router.push("/login");
-      return;
-    }
     fetchFilters();
-  }, [router, fetchFilters]);
+  }, [fetchFilters]);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (token) {
-      fetchBids();
-    }
+    fetchBids();
   }, [fetchBids]);
 
   const handleFilterChange = (newFilters: BidFilter) => {
