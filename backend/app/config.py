@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["*"]
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_database_url(cls, v):
+        if isinstance(v, str):
+            # Supabase/Heroku use postgres:// but SQLAlchemy needs postgresql://
+            if v.startswith("postgres://"):
+                v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://"):
+                v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
