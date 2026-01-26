@@ -249,13 +249,35 @@ class BaseScraper(ABC):
         full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
         text = text.translate(full_to_half)
 
-        # Common patterns for update date
+        # Common patterns for update date - expanded
         patterns = [
-            r'更新日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
-            r'更新日[：:]\s*(\d{4}/\d{1,2}/\d{1,2})',
-            r'更新日[：:]\s*(令和\d+年\d{1,2}月\d{1,2}日)',
-            r'最終更新日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
-            r'掲載日[：:]\s*(\d{4}年\d{1,2}月\d{1,2}日)',
+            # 更新日系
+            r'更新日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'更新日[：:\s]*(\d{4}/\d{1,2}/\d{1,2})',
+            r'更新日[：:\s]*(\d{4}-\d{1,2}-\d{1,2})',
+            r'更新日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            r'最終更新[日：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'最終更新[日：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            # 掲載日系
+            r'掲載日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'掲載日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            r'掲載日[：:\s]*(\d{4}/\d{1,2}/\d{1,2})',
+            # 登録日系
+            r'登録日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'登録日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            # 公開日系
+            r'公開日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'公開日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            # 作成日系
+            r'作成日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'作成日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            # ページ更新日
+            r'ページ更新日[：:\s]*(\d{4}年\d{1,2}月\d{1,2}日)',
+            r'ページ更新日[：:\s]*(令和\d+年\d{1,2}月\d{1,2}日)',
+            # 括弧内の日付（よくあるパターン）
+            r'\((\d{4}年\d{1,2}月\d{1,2}日)\s*(?:更新|掲載|登録)\)',
+            r'（(\d{4}年\d{1,2}月\d{1,2}日)\s*(?:更新|掲載|登録)）',
+            r'\((令和\d+年\d{1,2}月\d{1,2}日)\s*(?:更新|掲載|登録)\)',
         ]
 
         for pattern in patterns:
@@ -264,6 +286,33 @@ class BaseScraper(ABC):
                 parsed = self.parse_date(match.group(1))
                 if parsed:
                     return parsed
+        return None
+
+    def _extract_fiscal_year_from_title(self, title: str) -> Optional[int]:
+        """Extract fiscal year from title (令和X年度 or 20XX年度)"""
+        import re
+
+        # Convert full-width to half-width
+        full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
+        title = title.translate(full_to_half)
+
+        # 令和X年度 pattern
+        match = re.search(r'令和\s*(\d+)\s*年度', title)
+        if match:
+            reiwa_year = int(match.group(1))
+            return reiwa_year + 2018  # 令和1年 = 2019年
+
+        # 20XX年度 pattern
+        match = re.search(r'(20\d{2})\s*年度', title)
+        if match:
+            return int(match.group(1))
+
+        # R + number pattern (e.g., R6, R7)
+        match = re.search(r'[Rr]\s*(\d+)\s*(?:年度)?', title)
+        if match:
+            reiwa_year = int(match.group(1))
+            return reiwa_year + 2018
+
         return None
 
     def _is_too_old(self, update_date: Optional[date], months: int = 1) -> bool:
@@ -275,18 +324,42 @@ class BaseScraper(ABC):
         cutoff = date.today() - timedelta(days=months * 30)
         return update_date < cutoff
 
+    def _is_old_fiscal_year(self, title: str) -> bool:
+        """Check if bid is from an old fiscal year based on title"""
+        fiscal_year = self._extract_fiscal_year_from_title(title)
+        if not fiscal_year:
+            return False  # If can't determine, don't exclude
+
+        # Current fiscal year in Japan (April to March)
+        today = date.today()
+        if today.month >= 4:
+            current_fiscal_year = today.year
+        else:
+            current_fiscal_year = today.year - 1
+
+        # Allow current and next fiscal year only
+        # e.g., in Jan 2026, FY2025 and FY2026 are valid
+        return fiscal_year < current_fiscal_year
+
     async def enrich_bid_from_detail(self, bid: BidInfo) -> bool:
         """Fetch detail page and enrich bid information.
         Returns False if bid should be excluded (too old), True otherwise."""
+
+        # Check fiscal year from title first (before fetching detail page)
+        if self._is_old_fiscal_year(bid.title):
+            fiscal_year = self._extract_fiscal_year_from_title(bid.title)
+            logger.debug(f"Excluding old fiscal year ({fiscal_year}): {bid.title[:40]}")
+            return False
+
         if not bid.announcement_url:
             return True
 
         soup = await self.fetch_detail_page(bid.announcement_url)
         if soup:
-            # Check update date first
+            # Check update date
             update_date = self._extract_update_date(soup)
-            if self._is_too_old(update_date, months=1):
-                logger.debug(f"Excluding old bid (updated {update_date}): {bid.title[:30]}")
+            if self._is_too_old(update_date, months=2):
+                logger.debug(f"Excluding old bid (updated {update_date}): {bid.title[:40]}")
                 return False
 
             self._parse_detail_page(bid, soup)
