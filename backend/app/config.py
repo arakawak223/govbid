@@ -1,9 +1,26 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from functools import lru_cache
+from typing import Any
+
+
+def parse_cors_origins(v: Any) -> list[str]:
+    """Parse CORS origins from string or list."""
+    if isinstance(v, str):
+        # Handle JSON array format
+        if v.startswith("["):
+            import json
+            return json.loads(v)
+        # Handle comma-separated format
+        return [origin.strip() for origin in v.split(",") if origin.strip()]
+    if isinstance(v, list):
+        return v
+    return ["*"]
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     # Application
     app_name: str = "GovBid API"
     debug: bool = False
@@ -24,8 +41,13 @@ class Settings(BaseSettings):
     scrape_interval_hours: int = 24
     request_delay_seconds: float = 1.5
 
-    # CORS
-    cors_origins: list[str] = ["*"]
+    # CORS - stored as string to avoid pydantic-settings JSON parsing issues
+    cors_origins_str: str = "*"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Get CORS origins as a list."""
+        return parse_cors_origins(self.cors_origins_str)
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -37,16 +59,6 @@ class Settings(BaseSettings):
             elif v.startswith("postgresql://"):
                 v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
-
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
-
-    class Config:
-        env_file = ".env"
 
 
 @lru_cache()

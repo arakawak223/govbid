@@ -12,7 +12,7 @@ services:
         sync: false  # Set Supabase PostgreSQL URL in Render dashboard
       - key: SECRET_KEY
         generateValue: true
-      - key: CORS_ORIGINS
+      - key: CORS_ORIGINS_STR
         value: "https://govbid-frontend.onrender.com"
       - key: RESEND_API_KEY
         sync: false
