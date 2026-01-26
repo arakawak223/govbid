@@ -10,20 +10,38 @@ from app.scrapers.base import BaseScraper, BidInfo
 from app.scrapers.fukuoka_pref import FukuokaPrefScraper
 from app.scrapers.fukuoka_city import FukuokaCityScraper
 from app.scrapers.kitakyushu import KitakyushuScraper
+from app.scrapers.kurume import KurumeScraper
+from app.scrapers.tagawa import TagawaScraper
+from app.scrapers.munakata import MunakataScraper
+from app.scrapers.omuta import OmutaScraper
+from app.scrapers.iizuka import IizukaScraper
+from app.scrapers.fukutsu import FukutsuScraper
 from app.scrapers.saga import SagaScraper
 from app.scrapers.saga_city import SagaCityScraper
+from app.scrapers.karatsu import KaratsuScraper
 from app.scrapers.nagasaki import NagasakiScraper
 from app.scrapers.nagasaki_city import NagasakiCityScraper
+from app.scrapers.sasebo import SaseboScraper
+from app.scrapers.isahaya import IsahayaScraper
 from app.scrapers.kumamoto_pref import KumamotoPrefScraper
 from app.scrapers.kumamoto_city import KumamotoCityScraper
+from app.scrapers.yatsushiro import YatsushiroScraper
 from app.scrapers.oita import OitaScraper
 from app.scrapers.oita_city import OitaCityScraper
+from app.scrapers.beppu import BeppuScraper
+from app.scrapers.nakatsu import NakatsuScraper
 from app.scrapers.miyazaki import MiyazakiScraper
 from app.scrapers.miyazaki_city import MiyazakiCityScraper
+from app.scrapers.miyakonojo import MiyakonojoScraper
+from app.scrapers.nobeoka import NobeokaScraper
 from app.scrapers.kagoshima import KagoshimaScraper
 from app.scrapers.kagoshima_city import KagoshimaCityScraper
+from app.scrapers.kirishima import KirishimaScraper
+from app.scrapers.kanoya import KanoyaScraper
 from app.scrapers.okinawa import OkinawaScraper
 from app.scrapers.naha_city import NahaCityScraper
+from app.scrapers.okinawa_city import OkinawaCityScraper
+from app.scrapers.nago import NagoScraper
 from app.scrapers.yamaguchi import YamaguchiScraper
 from app.scrapers.yamaguchi_city import YamaguchiCityScraper
 from app.services.filter_service import filter_bids
@@ -32,23 +50,50 @@ logger = logging.getLogger(__name__)
 
 # All available scrapers
 SCRAPERS: list[Type[BaseScraper]] = [
+    # 福岡県
     FukuokaPrefScraper,
     FukuokaCityScraper,
     KitakyushuScraper,
+    KurumeScraper,
+    TagawaScraper,
+    MunakataScraper,
+    OmutaScraper,
+    IizukaScraper,
+    FukutsuScraper,
+    # 佐賀県
     SagaScraper,
     SagaCityScraper,
+    KaratsuScraper,
+    # 長崎県
     NagasakiScraper,
     NagasakiCityScraper,
+    SaseboScraper,
+    IsahayaScraper,
+    # 熊本県
     KumamotoPrefScraper,
     KumamotoCityScraper,
+    YatsushiroScraper,
+    # 大分県
     OitaScraper,
     OitaCityScraper,
+    BeppuScraper,
+    NakatsuScraper,
+    # 宮崎県
     MiyazakiScraper,
     MiyazakiCityScraper,
+    MiyakonojoScraper,
+    NobeokaScraper,
+    # 鹿児島県
     KagoshimaScraper,
     KagoshimaCityScraper,
+    KirishimaScraper,
+    KanoyaScraper,
+    # 沖縄県
     OkinawaScraper,
     NahaCityScraper,
+    OkinawaCityScraper,
+    NagoScraper,
+    # 山口県
     YamaguchiScraper,
     YamaguchiCityScraper,
 ]
