@@ -16,3 +16,11 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
+
+  - type: web
+    name: govbid-frontend
+    runtime: docker
+    rootDir: frontend
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://govbid-backend-qvl7.onrender.com
