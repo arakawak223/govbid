@@ -249,6 +249,62 @@ async def run_single_scraper(db: AsyncSession, municipality: str) -> dict:
     raise ValueError(f"Unknown municipality: {municipality}")
 
 
+EXCLUDE_KEYWORDS = [
+    # 写真募集系
+    "写真の募集",
+    "写真募集",
+    "フォトコンテスト",
+    # 職場体験・インターン系
+    "職場体験の募集",
+    "職場体験の実施及び受入事業所の募集",
+    "ジョブシャドウイング",
+    "インターンシップ受入",
+    "受入事業所の募集",
+    # 広告募集系
+    "広告募集",
+    "広告の募集",
+    "広告掲載の募集",
+    "広告枠の募集",
+    # Q&A・質問回答系
+    "質問および回答",
+    "質問及び回答",
+    "質問・回答",
+    "質問と回答",
+    "Q&A",
+    "Ｑ＆Ａ",
+    # その他除外
+    "ボランティア募集",
+    "参加者募集",
+    "出店者募集",
+    "出展者募集",
+]
+
+
+async def cleanup_unwanted_bids(db: AsyncSession) -> int:
+    """Remove bids that match exclusion keywords from database.
+
+    Returns:
+        Number of bids deleted
+    """
+    deleted_count = 0
+
+    for keyword in EXCLUDE_KEYWORDS:
+        result = await db.execute(
+            select(Bid).where(Bid.title.contains(keyword))
+        )
+        bids_to_delete = result.scalars().all()
+        for bid in bids_to_delete:
+            logger.info(f"Deleting unwanted bid: {bid.title[:50]}")
+            await db.delete(bid)
+            deleted_count += 1
+
+    if deleted_count > 0:
+        await db.commit()
+        logger.info(f"Cleaned up {deleted_count} unwanted bids")
+
+    return deleted_count
+
+
 async def save_bids(db: AsyncSession, bids: list[BidInfo]) -> int:
     """Save bids to database, avoiding duplicates
 
@@ -259,6 +315,9 @@ async def save_bids(db: AsyncSession, bids: list[BidInfo]) -> int:
     Returns:
         Number of new bids saved
     """
+    # First, cleanup any unwanted bids
+    await cleanup_unwanted_bids(db)
+
     new_count = 0
 
     # Get current max bid_number

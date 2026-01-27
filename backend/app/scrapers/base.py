@@ -110,6 +110,43 @@ class BaseScraper(ABC):
         logger.warning(f"Could not parse date: {date_str}")
         return None
 
+    def _parse_flexible_date(self, date_str: str) -> Optional[date]:
+        """Parse date string that may or may not include year"""
+        import re
+
+        if not date_str:
+            return None
+
+        date_str = date_str.strip()
+
+        # Convert full-width numbers to half-width
+        full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
+        date_str = date_str.translate(full_to_half)
+
+        # Try parsing with year first (令和 or western year)
+        parsed = self.parse_date(date_str)
+        if parsed:
+            return parsed
+
+        # If no year, try to parse month/day and infer year
+        match = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
+        if match:
+            month = int(match.group(1))
+            day = int(match.group(2))
+            today = date.today()
+
+            # If month is less than current month, assume next year
+            year = today.year
+            if month < today.month or (month == today.month and day < today.day):
+                year += 1
+
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
+
+        return None
+
     def parse_amount(self, amount_str: str) -> Optional[int]:
         """Parse amount string to integer"""
         if not amount_str:
@@ -169,47 +206,60 @@ class BaseScraper(ABC):
 
         # Application deadline: 提出期限、申込期限、締切、応募期限、提案書提出期限、参加意向申出書、参加表明書
         if not bid.application_end:
-            deadline_patterns = [
-                # 参加表明書・参加申出書の受付期間パターン（期間から終了日を抽出）
-                r'(?:参加表明書|参加申出書)[のなど]*(?:受付|提出)[期間]*[　\s]*[：:は]?\s*(?:令和\d+年)?\d{1,2}月\d{1,2}日[^\d]*(?:～|~|から|－|ー|−|〜)[^\d]*(令和\d+年\d{1,2}月\d{1,2}日|\d{1,2}月\d{1,2}日)',
-                # 一般的な受付期間パターン
-                r'(?:参加意向申出書提出期限|参加意向申出書の受付|参加表明書の受付期間|参加表明書などの提出期間|参加申出書の受付|参加申込書提出期限|提案書類?提出期限|書類提出期限|提出期限|提出期間|申込期限|応募期限|申請期限|受付期限|締切日?)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
-                r'(?:提出|申込|応募|参加申込|参加意向申出|参加表明)\s*(?:期限|締切|期間)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
+            # First, try to find date ranges and extract the end date
+            # Pattern: 令和X年Y月Z日～令和A年B月C日 or Y月Z日から B月C日まで
+            date_range_patterns = [
+                # 令和X年Y月Z日（曜日）～令和A年B月C日（曜日）
+                r'(令和\d+年\d{1,2}月\d{1,2}日)[（\(][^）\)]*[）\)]\s*(?:～|~|から|－|ー|−|〜)\s*(令和\d+年\d{1,2}月\d{1,2}日)',
+                # 令和X年Y月Z日～令和A年B月C日
+                r'(令和\d+年\d{1,2}月\d{1,2}日)\s*(?:～|~|から|－|ー|−|〜)\s*(令和\d+年\d{1,2}月\d{1,2}日)',
+                # Y月Z日（曜日）からB月C日（曜日）まで
+                r'(\d{1,2}月\d{1,2}日)[（\(][^）\)]*[）\)]\s*(?:から|～|~)\s*(\d{1,2}月\d{1,2}日|\d{1,2}日)',
+                # Y月Z日からB月C日まで
+                r'(\d{1,2}月\d{1,2}日)\s*(?:から|～|~)\s*(\d{1,2}月\d{1,2}日|\d{1,2}日)',
             ]
-            for pattern in deadline_patterns:
-                match = re.search(pattern, normalized_text)
-                if match:
-                    # 期間パターンの場合、最後の日付を取得
-                    matched_text = match.group(1) if match.lastindex >= 1 else match.group(0)
-                    # テキスト内の全日付を探して最後のものを使う
-                    date_matches = re.findall(r'(令和\d+年\d{1,2}月\d{1,2}日|\d{1,2}月\d{1,2}日)', matched_text)
-                    if date_matches:
-                        # 最後の日付を使用（終了日）
-                        last_date = date_matches[-1]
-                        # 月日のみの場合、現在の年を補完
-                        if not last_date.startswith('令和'):
-                            # 現在の年度に基づいて年を推測
-                            today = date.today()
-                            month_match = re.match(r'(\d{1,2})月(\d{1,2})日', last_date)
-                            if month_match:
-                                month = int(month_match.group(1))
-                                day = int(month_match.group(2))
-                                year = today.year
-                                # 月が現在より小さい場合は翌年と判断
-                                if month < today.month:
-                                    year += 1
-                                try:
-                                    bid.application_end = date(year, month, day)
-                                    break
-                                except ValueError:
-                                    pass
-                        else:
-                            parsed = self.parse_date(last_date)
+
+            # Look for date ranges near keywords
+            keywords_for_deadline = [
+                '参加表明書', '参加申出書', '参加意向申出書', '提出期間', '受付期間',
+                '申込期限', '応募期限', '提出期限', '受付期限'
+            ]
+
+            for keyword in keywords_for_deadline:
+                if keyword in normalized_text:
+                    # Find the keyword position and look for dates nearby
+                    keyword_pos = normalized_text.find(keyword)
+                    # Look at text within 200 chars after the keyword
+                    search_text = normalized_text[keyword_pos:keyword_pos + 300]
+
+                    for pattern in date_range_patterns:
+                        match = re.search(pattern, search_text)
+                        if match:
+                            # Get the end date (second group)
+                            end_date_str = match.group(2)
+                            # If it's just a day number like "30日", we need to get month from first date
+                            if re.match(r'^\d{1,2}日$', end_date_str):
+                                start_date_str = match.group(1)
+                                month_match = re.search(r'(\d{1,2})月', start_date_str)
+                                if month_match:
+                                    end_date_str = f"{month_match.group(1)}月{end_date_str}"
+
+                            parsed = self._parse_flexible_date(end_date_str)
                             if parsed:
                                 bid.application_end = parsed
                                 break
-                    else:
-                        parsed = self.parse_date(matched_text)
+                    if bid.application_end:
+                        break
+
+            # Fallback to original patterns if no date found
+            if not bid.application_end:
+                deadline_patterns = [
+                    r'(?:参加意向申出書提出期限|参加表明書の受付期間|参加表明書などの提出期間|参加申出書の受付|参加申込書提出期限|提案書類?提出期限|書類提出期限|提出期限|提出期間|申込期限|応募期限|申請期限|受付期限|締切日?)[：:は]?\s*[　\s]*(.+?)(?:\n|$)',
+                ]
+                for pattern in deadline_patterns:
+                    match = re.search(pattern, normalized_text)
+                    if match:
+                        parsed = self.parse_date(match.group(1))
                         if parsed:
                             bid.application_end = parsed
                             break
