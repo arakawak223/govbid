@@ -54,10 +54,11 @@ class Settings(BaseSettings):
     def fix_database_url(cls, v):
         if isinstance(v, str):
             # Supabase/Heroku use postgres:// but SQLAlchemy needs postgresql://
+            # Use psycopg (psycopg3) instead of asyncpg for better pgbouncer compatibility
             if v.startswith("postgres://"):
-                v = v.replace("postgres://", "postgresql+asyncpg://", 1)
+                v = v.replace("postgres://", "postgresql+psycopg://", 1)
             elif v.startswith("postgresql://"):
-                v = v.replace("postgresql://", "postgresql+asyncpg://", 1)
+                v = v.replace("postgresql://", "postgresql+psycopg://", 1)
         return v
 
 

@@ -6,16 +6,11 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# For Supabase/pgbouncer transaction mode compatibility:
-# - Use NullPool to avoid connection state issues
-# - Disable statement cache
+# Use NullPool for Supabase/pgbouncer compatibility
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     poolclass=NullPool,
-    connect_args={
-        "statement_cache_size": 0,
-    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
