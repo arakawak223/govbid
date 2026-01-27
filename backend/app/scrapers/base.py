@@ -167,19 +167,52 @@ class BaseScraper(ABC):
         full_to_half = str.maketrans('０１２３４５６７８９，：', '0123456789,:')
         normalized_text = text.translate(full_to_half)
 
-        # Application deadline: 提出期限、申込期限、締切、応募期限、提案書提出期限、参加意向申出書
+        # Application deadline: 提出期限、申込期限、締切、応募期限、提案書提出期限、参加意向申出書、参加表明書
         if not bid.application_end:
             deadline_patterns = [
-                r'(?:参加意向申出書提出期限|参加意向申出書の受付|参加申込書提出期限|提案書類?提出期限|書類提出期限|提出期限|提出期間|申込期限|応募期限|申請期限|受付期限|締切日?)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
-                r'(?:提出|申込|応募|参加申込|参加意向申出)\s*(?:期限|締切|期間)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
+                # 参加表明書・参加申出書の受付期間パターン（期間から終了日を抽出）
+                r'(?:参加表明書|参加申出書)[のなど]*(?:受付|提出)[期間]*[　\s]*[：:は]?\s*(?:令和\d+年)?\d{1,2}月\d{1,2}日[^\d]*(?:～|~|から|－|ー|−|〜)[^\d]*(令和\d+年\d{1,2}月\d{1,2}日|\d{1,2}月\d{1,2}日)',
+                # 一般的な受付期間パターン
+                r'(?:参加意向申出書提出期限|参加意向申出書の受付|参加表明書の受付期間|参加表明書などの提出期間|参加申出書の受付|参加申込書提出期限|提案書類?提出期限|書類提出期限|提出期限|提出期間|申込期限|応募期限|申請期限|受付期限|締切日?)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
+                r'(?:提出|申込|応募|参加申込|参加意向申出|参加表明)\s*(?:期限|締切|期間)[：:は]?\s*[　\s]*(.+?)(?:\n|$|まで)',
             ]
             for pattern in deadline_patterns:
                 match = re.search(pattern, normalized_text)
                 if match:
-                    parsed = self.parse_date(match.group(1))
-                    if parsed:
-                        bid.application_end = parsed
-                        break
+                    # 期間パターンの場合、最後の日付を取得
+                    matched_text = match.group(1) if match.lastindex >= 1 else match.group(0)
+                    # テキスト内の全日付を探して最後のものを使う
+                    date_matches = re.findall(r'(令和\d+年\d{1,2}月\d{1,2}日|\d{1,2}月\d{1,2}日)', matched_text)
+                    if date_matches:
+                        # 最後の日付を使用（終了日）
+                        last_date = date_matches[-1]
+                        # 月日のみの場合、現在の年を補完
+                        if not last_date.startswith('令和'):
+                            # 現在の年度に基づいて年を推測
+                            today = date.today()
+                            month_match = re.match(r'(\d{1,2})月(\d{1,2})日', last_date)
+                            if month_match:
+                                month = int(month_match.group(1))
+                                day = int(month_match.group(2))
+                                year = today.year
+                                # 月が現在より小さい場合は翌年と判断
+                                if month < today.month:
+                                    year += 1
+                                try:
+                                    bid.application_end = date(year, month, day)
+                                    break
+                                except ValueError:
+                                    pass
+                        else:
+                            parsed = self.parse_date(last_date)
+                            if parsed:
+                                bid.application_end = parsed
+                                break
+                    else:
+                        parsed = self.parse_date(matched_text)
+                        if parsed:
+                            bid.application_end = parsed
+                            break
 
         # Application start: 公告日、募集開始、公募開始、公示日
         if not bid.application_start:
@@ -341,9 +374,59 @@ class BaseScraper(ABC):
         # e.g., in Jan 2026, FY2025 and FY2026 are valid
         return fiscal_year < current_fiscal_year
 
+    def _should_exclude_by_title(self, title: str) -> bool:
+        """Check if bid should be excluded based on title keywords.
+
+        Excludes:
+        - Photo submissions (写真の募集)
+        - Job shadowing/work experience recruitment (職場体験の募集、ジョブシャドウイング)
+        - Advertisement space recruitment (広告募集)
+        - Q&A documents (質問および回答、質問・回答、Q&A)
+        - Recruitment for events that are not service contracts
+        """
+        exclude_keywords = [
+            # 写真募集系
+            "写真の募集",
+            "写真募集",
+            "フォトコンテスト",
+            # 職場体験・インターン系
+            "職場体験の募集",
+            "職場体験の実施及び受入事業所の募集",
+            "ジョブシャドウイング",
+            "インターンシップ受入",
+            "受入事業所の募集",
+            # 広告募集系
+            "広告募集",
+            "広告の募集",
+            "広告掲載の募集",
+            "広告枠の募集",
+            # Q&A・質問回答系
+            "質問および回答",
+            "質問及び回答",
+            "質問・回答",
+            "質問と回答",
+            "Q&A",
+            "Ｑ＆Ａ",
+            # その他除外
+            "ボランティア募集",
+            "参加者募集",  # イベント参加者募集
+            "出店者募集",
+            "出展者募集",
+        ]
+
+        for keyword in exclude_keywords:
+            if keyword in title:
+                logger.debug(f"Excluding by keyword '{keyword}': {title[:50]}")
+                return True
+        return False
+
     async def enrich_bid_from_detail(self, bid: BidInfo) -> bool:
         """Fetch detail page and enrich bid information.
-        Returns False if bid should be excluded (too old), True otherwise."""
+        Returns False if bid should be excluded (too old or irrelevant), True otherwise."""
+
+        # Check title-based exclusions first (before fetching detail page)
+        if self._should_exclude_by_title(bid.title):
+            return False
 
         # Check fiscal year from title first (before fetching detail page)
         if self._is_old_fiscal_year(bid.title):
