@@ -21,7 +21,7 @@ class FukuokaPrefScraper(BaseScraper):
 
         soup = await self.fetch_page(self.bid_list_url)
         if not soup:
-            return bids
+            return await self.enrich_bids_parallel(bids)
 
         # Find bid listings - they're typically in a list or table
         # Look for links containing bid-related keywords
@@ -57,9 +57,7 @@ class FukuokaPrefScraper(BaseScraper):
                     announcement_url=full_url,
                     source_url=self.bid_list_url,
                 )
+                bids.append(bid)
 
-                # Try to get more details from the detail page (with update date filter)
-                if await self.enrich_bid_from_detail(bid):
-                    bids.append(bid)
-
-        return bids
+        # Enrich bids in parallel (fetch detail pages concurrently)
+        return await self.enrich_bids_parallel(bids)

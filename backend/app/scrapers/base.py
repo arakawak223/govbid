@@ -510,6 +510,36 @@ class BaseScraper(ABC):
 
         return True
 
+    async def enrich_bids_parallel(self, bids: list[BidInfo], max_concurrent: int = 3) -> list[BidInfo]:
+        """Enrich multiple bids in parallel with concurrency limit.
+
+        Args:
+            bids: List of BidInfo objects to enrich
+            max_concurrent: Maximum concurrent detail page fetches
+
+        Returns:
+            List of enriched BidInfo objects (excluding filtered ones)
+        """
+        if not bids:
+            return []
+
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def process_bid(bid: BidInfo) -> Optional[BidInfo]:
+            async with semaphore:
+                try:
+                    should_include = await self.enrich_bid_from_detail(bid)
+                    return bid if should_include else None
+                except Exception as e:
+                    logger.error(f"Error enriching bid {bid.title[:30]}: {e}")
+                    return bid  # Include on error
+
+        tasks = [process_bid(bid) for bid in bids]
+        results = await asyncio.gather(*tasks)
+
+        # Filter out None values (excluded bids)
+        return [bid for bid in results if bid is not None]
+
     @abstractmethod
     async def scrape(self) -> list[BidInfo]:
         """Scrape bid information from the municipality website

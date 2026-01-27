@@ -18,7 +18,7 @@ class NagasakiCityScraper(BaseScraper):
 
         soup = await self.fetch_page(self.bid_list_url)
         if not soup:
-            return bids
+            return await self.enrich_bids_parallel(bids)
 
         content = soup.find("div", {"id": "contents"}) or soup.find("main") or soup
 
@@ -47,7 +47,6 @@ class NagasakiCityScraper(BaseScraper):
                     source_url=self.bid_list_url,
                 )
 
-                if await self.enrich_bid_from_detail(bid):
-                    bids.append(bid)
+                bids.append(bid)  # Will be enriched in parallel
 
-        return bids
+        return await self.enrich_bids_parallel(bids)

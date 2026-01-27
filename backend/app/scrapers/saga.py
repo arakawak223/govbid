@@ -64,7 +64,6 @@ class SagaScraper(BaseScraper):
                     announcement_url=full_url,
                     source_url=list_url,
                 )
-                if await self.enrich_bid_from_detail(bid):
-                    bids.append(bid)
+                bids.append(bid)  # Will be enriched in parallel
 
-        return bids
+        return await self.enrich_bids_parallel(bids)
