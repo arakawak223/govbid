@@ -5,14 +5,16 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Add prepared_statement_cache_size=0 to URL for pgbouncer compatibility
+database_url = settings.database_url
+if "?" in database_url:
+    database_url += "&prepared_statement_cache_size=0"
+else:
+    database_url += "?prepared_statement_cache_size=0"
+
 engine = create_async_engine(
-    settings.database_url,
+    database_url,
     echo=settings.debug,
-    # Disable prepared statement cache for pgbouncer/Supabase pooler compatibility
-    connect_args={
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
-    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
