@@ -158,16 +158,26 @@ def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
     Returns:
         Filtered and categorized list of BidInfo objects
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     filtered = []
+    excluded_by_pattern = 0
+    excluded_by_deadline = 0
+    excluded_by_keyword = 0
 
     for bid in bids:
         # 除外パターンに該当する場合はスキップ
         if should_exclude(bid.title):
+            excluded_by_pattern += 1
+            logger.debug(f"Excluded by pattern: {bid.title[:50]}")
             continue
 
         # 締切日チェック（詳細ページのapplication_endのみ使用）
         # タイトルの日付は参加申込締切など最終締切でない場合があるため使用しない
         if bid.application_end and bid.application_end < date.today():
+            excluded_by_deadline += 1
+            logger.debug(f"Excluded by deadline ({bid.application_end}): {bid.title[:50]}")
             continue  # 期限切れ
 
         # カテゴリ分類（広報・プロモーション・イベントに該当するもののみ含める）
@@ -175,7 +185,17 @@ def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
         if category:
             bid.category = category
             filtered.append(bid)
-        # キーワードに該当しない案件は除外
+            logger.debug(f"Included ({category}): {bid.title[:50]}")
+        else:
+            excluded_by_keyword += 1
+            logger.debug(f"Excluded by keyword mismatch: {bid.title[:50]}")
+
+    logger.info(
+        f"Filter results: {len(filtered)} included, "
+        f"{excluded_by_pattern} excluded by pattern, "
+        f"{excluded_by_deadline} excluded by deadline, "
+        f"{excluded_by_keyword} excluded by keyword mismatch"
+    )
 
     return filtered
 
