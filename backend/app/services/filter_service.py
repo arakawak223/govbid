@@ -165,15 +165,10 @@ def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
         if should_exclude(bid.title):
             continue
 
-        # 締切日チェック（詳細ページのapplication_endを優先）
-        if bid.application_end:
-            # application_endが設定されている場合はそれを使用
-            if bid.application_end < date.today():
-                continue  # 期限切れ
-        else:
-            # application_endがない場合のみタイトルから締切日をチェック
-            if is_deadline_passed_from_title(bid.title):
-                continue  # タイトルの締切日が過ぎている
+        # 締切日チェック（詳細ページのapplication_endのみ使用）
+        # タイトルの日付は参加申込締切など最終締切でない場合があるため使用しない
+        if bid.application_end and bid.application_end < date.today():
+            continue  # 期限切れ
 
         # カテゴリ分類（広報・プロモーション・イベントに該当するもののみ含める）
         category = categorize_bid(bid.title)
