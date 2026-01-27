@@ -8,6 +8,11 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
+    # Disable prepared statement cache for pgbouncer/Supabase pooler compatibility
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
