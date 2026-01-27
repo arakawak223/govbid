@@ -55,6 +55,7 @@ class BidCreate(BidBase):
 
 class BidResponse(BidBase):
     id: str
+    bid_number: int | None = None
     scraped_at: datetime
     created_at: datetime
     updated_at: datetime

@@ -8,6 +8,7 @@ export interface User {
 
 export interface Bid {
   id: string;
+  bid_number: number | null;
   title: string;
   municipality: string;
   category: string | null;

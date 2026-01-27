@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Type
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Bid
@@ -261,6 +261,10 @@ async def save_bids(db: AsyncSession, bids: list[BidInfo]) -> int:
     """
     new_count = 0
 
+    # Get current max bid_number
+    result = await db.execute(select(func.max(Bid.bid_number)))
+    current_max = result.scalar() or 0
+
     for bid_info in bids:
         # Check if this bid already exists (by title and municipality)
         result = await db.execute(
@@ -283,7 +287,8 @@ async def save_bids(db: AsyncSession, bids: list[BidInfo]) -> int:
             existing.status = bid_info.status
             existing.scraped_at = datetime.utcnow()
         else:
-            # Create new bid
+            # Create new bid with bid_number
+            current_max += 1
             new_bid = Bid(
                 title=bid_info.title,
                 municipality=bid_info.municipality,
@@ -296,6 +301,7 @@ async def save_bids(db: AsyncSession, bids: list[BidInfo]) -> int:
                 application_end=bid_info.application_end,
                 status=bid_info.status,
                 source_url=bid_info.source_url,
+                bid_number=current_max,
             )
             db.add(new_bid)
             new_count += 1

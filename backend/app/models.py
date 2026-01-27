@@ -25,6 +25,7 @@ class Bid(Base):
     __tablename__ = "bids"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_uuid)
+    bid_number: Mapped[int | None] = mapped_column(Integer, unique=True, index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     municipality: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     category: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)

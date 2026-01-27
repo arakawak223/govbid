@@ -32,3 +32,51 @@ async def get_db():
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Migrate: Add bid_number column and assign numbers to existing bids
+    await migrate_bid_numbers()
+
+
+async def migrate_bid_numbers():
+    """既存のbidsにbid_numberを付与するマイグレーション"""
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        # Check if column exists (PostgreSQL)
+        try:
+            result = await conn.execute(text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'bids' AND column_name = 'bid_number'"
+            ))
+            column_exists = result.fetchone() is not None
+
+            if not column_exists:
+                # Add the column
+                await conn.execute(text(
+                    "ALTER TABLE bids ADD COLUMN bid_number INTEGER UNIQUE"
+                ))
+        except Exception:
+            # Column might already exist or different DB, continue
+            pass
+
+        # Assign bid_numbers to records that don't have one
+        try:
+            # Get max bid_number
+            result = await conn.execute(text(
+                "SELECT COALESCE(MAX(bid_number), 0) FROM bids"
+            ))
+            max_number = result.scalar() or 0
+
+            # Get bids without bid_number, ordered by created_at
+            result = await conn.execute(text(
+                "SELECT id FROM bids WHERE bid_number IS NULL ORDER BY created_at ASC"
+            ))
+            rows = result.fetchall()
+
+            # Assign numbers
+            for i, row in enumerate(rows, start=max_number + 1):
+                await conn.execute(text(
+                    "UPDATE bids SET bid_number = :num WHERE id = :id"
+                ), {"num": i, "id": row[0]})
+        except Exception as e:
+            print(f"Migration warning: {e}")

@@ -32,6 +32,9 @@ export default function BidTable({ bids, loading }: BidTableProps) {
         <thead className="bg-gray-50">
           <tr>
             <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
+              No.
+            </th>
+            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
               案件タイトル
             </th>
             <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
@@ -54,6 +57,9 @@ export default function BidTable({ bids, loading }: BidTableProps) {
         <tbody className="bg-white divide-y divide-gray-200">
           {bids.map((bid) => (
             <tr key={bid.id} className="hover:bg-gray-50">
+              <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">
+                {bid.bid_number ?? "-"}
+              </td>
               <td className="px-2 py-2 text-sm text-gray-900">
                 <div className="max-w-2xl truncate" title={bid.title}>
                   {bid.title}
