@@ -138,6 +138,26 @@ export const bidsApi = {
 };
 
 // Scraping API
+export interface ScrapeStartResult {
+  status: "started" | "already_running";
+  message: string;
+  started_at?: string;
+}
+
+export interface ScrapeStatus {
+  is_running: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+  result: {
+    total_scraped: number;
+    total_filtered: number;
+    total_new: number;
+    municipalities: Record<string, { scraped: number; filtered: number; new: number }>;
+    errors: string[];
+  } | null;
+  error: string | null;
+}
+
 export interface ScrapeResult {
   status: string;
   total_new_bids: number;
@@ -150,11 +170,13 @@ export interface ScrapeResult {
 }
 
 export const scrapeApi = {
-  runAll: async (): Promise<ScrapeResult> => {
-    // Scraping can take a long time (5+ minutes for all municipalities)
-    const response = await api.post<ScrapeResult>("/scrape", null, {
-      timeout: 600000, // 10 minutes
-    });
+  runAll: async (): Promise<ScrapeStartResult> => {
+    const response = await api.post<ScrapeStartResult>("/scrape");
+    return response.data;
+  },
+
+  getStatus: async (): Promise<ScrapeStatus> => {
+    const response = await api.get<ScrapeStatus>("/scrape/status");
     return response.data;
   },
 
