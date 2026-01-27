@@ -14,14 +14,34 @@ class KumamotoCityScraper(BaseScraper):
     municipality_name = "熊本市"
     base_url = "https://www.city.kumamoto.jp"
     bid_list_url = "https://www.city.kumamoto.jp/list04401.html"
+    # Additional pages to scrape (pagination handler returns partial HTML)
+    pagination_url_template = "https://www.city.kumamoto.jp/dynamic/hpkiji/pub/hpkijilistpagerhandler.ashx?c_id=3&class_id=4401&class_set_id=1&pg={page}&kbn=alllist"
 
     async def scrape(self) -> list[BidInfo]:
         """Scrape bid information from Kumamoto City website"""
         bids = []
+        seen_urls = set()
 
+        # First, scrape the main list page
         soup = await self.fetch_page(self.bid_list_url)
-        if not soup:
-            return await self.enrich_bids_parallel(bids)
+        if soup:
+            bids.extend(self._extract_bids_from_soup(soup, seen_urls))
+
+        # Then scrape additional pages (pagination)
+        for page in range(1, 6):  # Check pages 1-5
+            page_url = self.pagination_url_template.format(page=page)
+            soup = await self.fetch_page(page_url)
+            if soup:
+                new_bids = self._extract_bids_from_soup(soup, seen_urls)
+                if not new_bids:
+                    break  # No more bids on this page
+                bids.extend(new_bids)
+
+        return await self.enrich_bids_parallel(bids)
+
+    def _extract_bids_from_soup(self, soup: BeautifulSoup, seen_urls: set) -> list[BidInfo]:
+        """Extract bids from a BeautifulSoup object"""
+        bids = []
 
         # Find the content area
         content = soup.find("div", {"id": "contentsArea"}) or soup
@@ -53,12 +73,17 @@ class KumamotoCityScraper(BaseScraper):
 
             full_url = href if href.startswith("http") else f"{self.base_url}{href}"
 
+            # Skip if we've already seen this URL
+            if full_url in seen_urls:
+                continue
+            seen_urls.add(full_url)
+
             bid = BidInfo(
                 title=text,
                 municipality=self.municipality_name,
                 announcement_url=full_url,
                 source_url=self.bid_list_url,
             )
-            bids.append(bid)  # Will be enriched in parallel
+            bids.append(bid)
 
-        return await self.enrich_bids_parallel(bids)
+        return bids
