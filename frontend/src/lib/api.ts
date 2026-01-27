@@ -151,12 +151,17 @@ export interface ScrapeResult {
 
 export const scrapeApi = {
   runAll: async (): Promise<ScrapeResult> => {
-    const response = await api.post<ScrapeResult>("/scrape");
+    // Scraping can take a long time (5+ minutes for all municipalities)
+    const response = await api.post<ScrapeResult>("/scrape", null, {
+      timeout: 600000, // 10 minutes
+    });
     return response.data;
   },
 
   runSingle: async (municipality: string): Promise<ScrapeResult> => {
-    const response = await api.post<ScrapeResult>(`/scrape?municipality=${encodeURIComponent(municipality)}`);
+    const response = await api.post<ScrapeResult>(`/scrape?municipality=${encodeURIComponent(municipality)}`, null, {
+      timeout: 120000, // 2 minutes for single municipality
+    });
     return response.data;
   },
 

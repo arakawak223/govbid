@@ -20,10 +20,16 @@ export default function Header() {
       setTimeout(() => setResult(null), 5000);
       // ページをリロードして新しいデータを表示
       setTimeout(() => window.location.reload(), 1000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Scraping failed:", error);
-      setResult("エラー: スクレイピングに失敗しました");
-      setTimeout(() => setResult(null), 5000);
+      let errorMessage = "エラー: スクレイピングに失敗しました";
+      if (error && typeof error === "object" && "code" in error) {
+        if (error.code === "ECONNABORTED") {
+          errorMessage = "エラー: タイムアウトしました。再度お試しください";
+        }
+      }
+      setResult(errorMessage);
+      setTimeout(() => setResult(null), 10000);
     } finally {
       setIsLoading(false);
     }
