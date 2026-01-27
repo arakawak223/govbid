@@ -9,9 +9,9 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build the application
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Build the application with production API URL
+ARG NEXT_PUBLIC_API_URL=https://govbid-backend.onrender.com
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN npm run build
 
 # Production image
