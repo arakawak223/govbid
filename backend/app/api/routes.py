@@ -140,8 +140,8 @@ async def get_bids(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    # Apply pagination and ordering
-    query = query.order_by(Bid.application_end.desc().nullsfirst(), Bid.created_at.desc())
+    # Apply pagination and ordering - order by bid_number ascending (1, 2, 3...)
+    query = query.order_by(Bid.bid_number.asc().nullslast())
     query = query.offset((page - 1) * per_page).limit(per_page)
 
     result = await db.execute(query)
