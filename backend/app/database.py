@@ -6,9 +6,16 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Build database URL with prepare_threshold=0 for pgbouncer compatibility
+db_url = settings.database_url
+if "?" in db_url:
+    db_url = f"{db_url}&prepare_threshold=0"
+else:
+    db_url = f"{db_url}?prepare_threshold=0"
+
 # Use NullPool for Supabase/pgbouncer compatibility
 engine = create_async_engine(
-    settings.database_url,
+    db_url,
     echo=settings.debug,
     poolclass=NullPool,
 )
