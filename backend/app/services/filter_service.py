@@ -24,16 +24,18 @@ def extract_deadline_from_title(title: str) -> Optional[date]:
         # Determine year based on current date
         today = date.today()
 
-        # If the month is far ahead of current month (e.g., 12月 when we're in 1月),
-        # it's likely from last year
-        if month > today.month + 2:
+        # Calculate month difference (positive = future, negative = past)
+        month_diff = month - today.month
+
+        year = today.year
+        if month_diff > 2:
+            # Month is significantly ahead (e.g., 12月 when we're in 1月)
+            # This is likely a deadline from the previous year
             year = today.year - 1
-        elif month < today.month - 2:
-            # If month is far behind (e.g., 1月 締切 when we're in 11月),
-            # it could be next year, but for締切 it's usually past
-            year = today.year
-        else:
-            year = today.year
+        elif month_diff < 0 or (month_diff == 0 and day < today.day):
+            # Month has passed, or same month but day has passed
+            # Keep current year (deadline has passed this year)
+            pass
 
         try:
             return date(year, month, day)

@@ -135,10 +135,25 @@ class BaseScraper(ABC):
             day = int(match.group(2))
             today = date.today()
 
-            # If month is less than current month, assume next year
+            # Determine year based on context:
+            # - For deadlines, if the month is far in the future (>2 months ahead),
+            #   it's likely from the previous year
+            # - If the month is less than current month, assume next year (for future dates)
+            # - Otherwise, assume current year
             year = today.year
-            if month < today.month or (month == today.month and day < today.day):
-                year += 1
+
+            # Calculate month difference (positive = future, negative = past)
+            month_diff = month - today.month
+
+            if month_diff > 2:
+                # Month is significantly ahead (e.g., December when we're in January)
+                # This is likely a date from the previous year
+                year = today.year - 1
+            elif month_diff < 0 or (month_diff == 0 and day < today.day):
+                # Month is behind current month, or same month but day has passed
+                # For deadlines, this means it's already passed this year
+                # Keep current year (the deadline has passed)
+                pass
 
             try:
                 return date(year, month, day)
