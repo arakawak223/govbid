@@ -7,12 +7,12 @@ from app.config import get_settings
 settings = get_settings()
 
 # Use NullPool for Supabase/pgbouncer compatibility
-# Set prepare_threshold=0 to disable prepared statements (required for pgbouncer)
+# Set prepare_threshold=None to disable prepared statements (required for pgbouncer)
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     poolclass=NullPool,
-    connect_args={"prepare_threshold": 0},
+    connect_args={"prepare_threshold": None},
 )
 
 AsyncSessionLocal = async_sessionmaker(
