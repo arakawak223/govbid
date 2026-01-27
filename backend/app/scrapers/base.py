@@ -407,6 +407,12 @@ class BaseScraper(ABC):
         cutoff = date.today() - timedelta(days=months * 30)
         return update_date < cutoff
 
+    def _is_deadline_passed(self, application_end: Optional[date]) -> bool:
+        """Check if application deadline has already passed"""
+        if not application_end:
+            return False  # If no deadline found, don't exclude
+        return application_end < date.today()
+
     def _is_old_fiscal_year(self, title: str) -> bool:
         """Check if bid is from an old fiscal year based on title"""
         fiscal_year = self._extract_fiscal_year_from_title(title)
@@ -496,6 +502,12 @@ class BaseScraper(ABC):
                 return False
 
             self._parse_detail_page(bid, soup)
+
+            # Check if application deadline has passed
+            if self._is_deadline_passed(bid.application_end):
+                logger.debug(f"Excluding expired bid (deadline {bid.application_end}): {bid.title[:40]}")
+                return False
+
         return True
 
     @abstractmethod
