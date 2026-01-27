@@ -173,12 +173,20 @@ def filter_bids(bids: list[BidInfo]) -> list[BidInfo]:
             logger.debug(f"Excluded by pattern: {bid.title[:50]}")
             continue
 
-        # 締切日チェック（詳細ページのapplication_endのみ使用）
-        # タイトルの日付は参加申込締切など最終締切でない場合があるため使用しない
+        # 締切日チェック
+        # 1. 詳細ページのapplication_endを優先
+        # 2. application_endがない場合はタイトルの締切日をフォールバックとして使用
         if bid.application_end and bid.application_end < date.today():
             excluded_by_deadline += 1
-            logger.debug(f"Excluded by deadline ({bid.application_end}): {bid.title[:50]}")
+            logger.debug(f"Excluded by application_end ({bid.application_end}): {bid.title[:50]}")
             continue  # 期限切れ
+
+        # タイトルから締切日を抽出（application_endがない場合のフォールバック）
+        if not bid.application_end and is_deadline_passed_from_title(bid.title):
+            title_deadline = extract_deadline_from_title(bid.title)
+            excluded_by_deadline += 1
+            logger.debug(f"Excluded by title deadline ({title_deadline}): {bid.title[:50]}")
+            continue  # タイトルの締切日が過ぎている
 
         # カテゴリ分類（広報・プロモーション・イベントに該当するもののみ含める）
         category = categorize_bid(bid.title)
