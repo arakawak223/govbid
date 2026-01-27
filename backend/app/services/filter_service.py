@@ -14,21 +14,24 @@ def extract_deadline_from_title(title: str) -> Optional[date]:
     full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
     title = title.translate(full_to_half)
 
-    # Pattern: X月Y日締切 or X月Y日参加申込締切
-    match = re.search(r'(\d{1,2})月(\d{1,2})日[^】]*締切', title)
+    # Pattern: X月Y日 followed by optional text and 締切
+    # Matches: 1月19日締切, 12月26参加申込締切, 12月19日締切
+    match = re.search(r'(\d{1,2})月(\d{1,2})日?[^】]{0,10}締切', title)
     if match:
         month = int(match.group(1))
         day = int(match.group(2))
 
         # Determine year based on current date
         today = date.today()
-        # If month is less than current month, assume it was last year
-        if month < today.month or (month == today.month and day < today.day):
-            # Could be last year or earlier this year
-            year = today.year if month >= today.month - 1 else today.year
-            # For deadlines like 12月 when we're in 1月, it was last year
-            if month > today.month + 6:
-                year = today.year - 1
+
+        # If the month is far ahead of current month (e.g., 12月 when we're in 1月),
+        # it's likely from last year
+        if month > today.month + 2:
+            year = today.year - 1
+        elif month < today.month - 2:
+            # If month is far behind (e.g., 1月 締切 when we're in 11月),
+            # it could be next year, but for締切 it's usually past
+            year = today.year
         else:
             year = today.year
 
