@@ -1,20 +1,21 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
 
 settings = get_settings()
 
-# Add prepared_statement_cache_size=0 to URL for pgbouncer compatibility
-database_url = settings.database_url
-if "?" in database_url:
-    database_url += "&prepared_statement_cache_size=0"
-else:
-    database_url += "?prepared_statement_cache_size=0"
-
+# For Supabase/pgbouncer transaction mode compatibility:
+# - Use NullPool to avoid connection state issues
+# - Disable statement cache
 engine = create_async_engine(
-    database_url,
+    settings.database_url,
     echo=settings.debug,
+    poolclass=NullPool,
+    connect_args={
+        "statement_cache_size": 0,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
