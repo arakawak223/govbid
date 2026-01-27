@@ -1,6 +1,7 @@
 from datetime import timedelta
 from typing import Annotated
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select, func, or_
@@ -198,20 +199,77 @@ async def get_categories(
 # Scrape Routes
 # =============================================================================
 
+# Global variable to track scraping status
+_scrape_status = {
+    "is_running": False,
+    "started_at": None,
+    "completed_at": None,
+    "result": None,
+    "error": None,
+}
+
+
+async def _run_scrape_background():
+    """Background task to run scraping"""
+    from app.database import AsyncSessionLocal
+    from app.services.scraper_service import run_all_scrapers
+    import datetime
+
+    global _scrape_status
+    _scrape_status["is_running"] = True
+    _scrape_status["started_at"] = datetime.datetime.utcnow().isoformat()
+    _scrape_status["completed_at"] = None
+    _scrape_status["result"] = None
+    _scrape_status["error"] = None
+
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await run_all_scrapers(db)
+            _scrape_status["result"] = result
+    except Exception as e:
+        _scrape_status["error"] = str(e)
+    finally:
+        _scrape_status["is_running"] = False
+        _scrape_status["completed_at"] = datetime.datetime.utcnow().isoformat()
+
+
 @router.post("/scrape")
 async def run_scrape(
-    db: Annotated[AsyncSession, Depends(get_db)],
     municipality: str | None = None,
 ):
-    """手動スクレイピング実行"""
-    from app.services.scraper_service import run_all_scrapers, run_single_scraper
+    """手動スクレイピング実行（バックグラウンド）"""
+    from app.services.scraper_service import run_single_scraper
+    from app.database import AsyncSessionLocal
 
+    global _scrape_status
+
+    # For single municipality, run synchronously (faster)
     if municipality:
-        result = await run_single_scraper(db, municipality)
-    else:
-        result = await run_all_scrapers(db)
+        async with AsyncSessionLocal() as db:
+            result = await run_single_scraper(db, municipality)
+        return result
 
-    return result
+    # For all municipalities, check if already running
+    if _scrape_status["is_running"]:
+        return {
+            "status": "already_running",
+            "message": "スクレイピングは既に実行中です",
+            "started_at": _scrape_status["started_at"],
+        }
+
+    # Start background task using asyncio.create_task
+    asyncio.create_task(_run_scrape_background())
+
+    return {
+        "status": "started",
+        "message": "スクレイピングをバックグラウンドで開始しました。/api/scrape/status で進捗を確認できます。",
+    }
+
+
+@router.get("/scrape/status")
+async def get_scrape_status():
+    """スクレイピング状況取得"""
+    return _scrape_status
 
 
 @router.get("/scrape/municipalities", response_model=list[str])
