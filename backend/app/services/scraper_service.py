@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Type
@@ -151,8 +152,60 @@ SCRAPERS: list[Type[BaseScraper]] = [
 ]
 
 
+async def _scrape_municipality(
+    scraper_class: Type[BaseScraper],
+    semaphore: asyncio.Semaphore
+) -> dict:
+    """Run a single scraper with semaphore for concurrency control
+
+    Args:
+        scraper_class: The scraper class to run
+        semaphore: Semaphore to limit concurrency
+
+    Returns:
+        Dict with scraping results for this municipality
+    """
+    async with semaphore:
+        scraper = scraper_class()
+        municipality = scraper.municipality_name
+
+        try:
+            logger.info(f"Starting scrape for {municipality}")
+
+            # Run the scraper
+            raw_bids = await scraper.scrape()
+
+            # Filter for relevant bids
+            filtered_bids = filter_bids(raw_bids)
+
+            logger.info(
+                f"Completed {municipality}: {len(raw_bids)} scraped, "
+                f"{len(filtered_bids)} filtered"
+            )
+
+            return {
+                "municipality": municipality,
+                "raw_bids": raw_bids,
+                "filtered_bids": filtered_bids,
+                "error": None,
+            }
+
+        except Exception as e:
+            error_msg = f"Error scraping {municipality}: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "municipality": municipality,
+                "raw_bids": [],
+                "filtered_bids": [],
+                "error": error_msg,
+            }
+
+        finally:
+            await scraper.close()
+
+
 async def run_all_scrapers(db: AsyncSession) -> dict:
-    """Run all scrapers and save results to database
+    """Run all scrapers in parallel and save results to database
 
     Args:
         db: Database session
@@ -173,43 +226,44 @@ async def run_all_scrapers(db: AsyncSession) -> dict:
         "errors": [],
     }
 
-    for scraper_class in SCRAPERS:
-        scraper = scraper_class()
-        municipality = scraper.municipality_name
+    # Run scrapers in parallel with concurrency limit of 5
+    semaphore = asyncio.Semaphore(5)
+    tasks = [
+        _scrape_municipality(scraper_class, semaphore)
+        for scraper_class in SCRAPERS
+    ]
 
-        try:
-            logger.info(f"Starting scrape for {municipality}")
+    logger.info(f"Starting parallel scrape of {len(SCRAPERS)} municipalities (5 concurrent)")
+    scrape_results = await asyncio.gather(*tasks)
 
-            # Run the scraper
-            raw_bids = await scraper.scrape()
-            results["total_scraped"] += len(raw_bids)
+    # Process results and save to database
+    for scrape_result in scrape_results:
+        municipality = scrape_result["municipality"]
 
-            # Filter for relevant bids
-            filtered_bids = filter_bids(raw_bids)
-            results["total_filtered"] += len(filtered_bids)
+        if scrape_result["error"]:
+            results["errors"].append(scrape_result["error"])
+            continue
 
-            # Save to database
-            new_count = await save_bids(db, filtered_bids)
-            results["total_new"] += new_count
+        raw_bids = scrape_result["raw_bids"]
+        filtered_bids = scrape_result["filtered_bids"]
 
-            results["municipalities"][municipality] = {
-                "scraped": len(raw_bids),
-                "filtered": len(filtered_bids),
-                "new": new_count,
-            }
+        results["total_scraped"] += len(raw_bids)
+        results["total_filtered"] += len(filtered_bids)
 
-            logger.info(
-                f"Completed {municipality}: {len(raw_bids)} scraped, "
-                f"{len(filtered_bids)} filtered, {new_count} new"
-            )
+        # Save to database
+        new_count = await save_bids(db, filtered_bids)
+        results["total_new"] += new_count
 
-        except Exception as e:
-            error_msg = f"Error scraping {municipality}: {str(e)}"
-            logger.error(error_msg)
-            results["errors"].append(error_msg)
+        results["municipalities"][municipality] = {
+            "scraped": len(raw_bids),
+            "filtered": len(filtered_bids),
+            "new": new_count,
+        }
 
-        finally:
-            await scraper.close()
+    logger.info(
+        f"Parallel scrape complete: {results['total_scraped']} scraped, "
+        f"{results['total_filtered']} filtered, {results['total_new']} new"
+    )
 
     return results
 
