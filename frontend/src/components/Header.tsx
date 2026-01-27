@@ -1,6 +1,34 @@
 "use client";
 
+import { useState } from "react";
+import { scrapeApi } from "@/lib/api";
+
 export default function Header() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleScrape = async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setResult(null);
+
+    try {
+      const response = await scrapeApi.runAll();
+      setResult(`完了: ${response.total_new_bids}件の新規入札情報を取得しました`);
+      // 3秒後に結果を消す
+      setTimeout(() => setResult(null), 5000);
+      // ページをリロードして新しいデータを表示
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      console.error("Scraping failed:", error);
+      setResult("エラー: スクレイピングに失敗しました");
+      setTimeout(() => setResult(null), 5000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <header className="bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 py-4">
@@ -10,6 +38,46 @@ export default function Header() {
             <p className="text-sm text-gray-500">
               九州・山口 入札情報収集システム
             </p>
+          </div>
+          <div className="flex items-center gap-4">
+            {result && (
+              <span className={`text-sm ${result.startsWith("エラー") ? "text-red-600" : "text-green-600"}`}>
+                {result}
+              </span>
+            )}
+            <button
+              onClick={handleScrape}
+              disabled={isLoading}
+              className={`px-4 py-2 rounded-md text-white font-medium transition-colors ${
+                isLoading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  取得中...
+                </span>
+              ) : (
+                "入札情報を取得"
+              )}
+            </button>
           </div>
         </div>
       </div>

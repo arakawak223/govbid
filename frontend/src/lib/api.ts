@@ -137,4 +137,33 @@ export const bidsApi = {
   },
 };
 
+// Scraping API
+export interface ScrapeResult {
+  status: string;
+  total_new_bids: number;
+  results: Array<{
+    municipality: string;
+    new_bids: number;
+    status: string;
+    error?: string;
+  }>;
+}
+
+export const scrapeApi = {
+  runAll: async (): Promise<ScrapeResult> => {
+    const response = await api.post<ScrapeResult>("/scrape");
+    return response.data;
+  },
+
+  runSingle: async (municipality: string): Promise<ScrapeResult> => {
+    const response = await api.post<ScrapeResult>(`/scrape?municipality=${encodeURIComponent(municipality)}`);
+    return response.data;
+  },
+
+  getMunicipalities: async (): Promise<string[]> => {
+    const response = await api.get<string[]>("/scrape/municipalities");
+    return response.data;
+  },
+};
+
 export default api;
