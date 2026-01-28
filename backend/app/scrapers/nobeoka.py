@@ -33,7 +33,8 @@ class NobeokaScraper(BaseScraper):
             if any(keyword in text for keyword in ["公募", "募集", "企画", "プロポーザル", "委託", "提案"]):
                 if any(ex in text for ex in [
                     "質問への回答", "質問に対する回答", "質問回答", "質問と回答",
-                    "審査結果", "選定結果", "結果について", "の結果", "決定について"
+                    "審査結果", "選定結果", "結果について", "の結果", "決定について",
+                    "の一覧"
                 ]):
                     continue
                 full_url = href if href.startswith("http") else f"{self.base_url}{href}"

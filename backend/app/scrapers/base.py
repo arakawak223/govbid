@@ -483,6 +483,8 @@ class BaseScraper(ABC):
             "参加者募集",  # イベント参加者募集
             "出店者募集",
             "出展者募集",
+            # 一覧ページへのリンク
+            "の一覧",
         ]
 
         for keyword in exclude_keywords:
