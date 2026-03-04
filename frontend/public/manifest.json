@@ -1,0 +1,28 @@
+{
+  "name": "GovBid - 九州・山口 入札情報収集システム",
+  "short_name": "GovBid",
+  "description": "九州・山口地域の自治体から広報・プロモーション・イベント関連の入札案件を自動収集し、一覧表示するシステム",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
