@@ -8,11 +8,15 @@ settings = get_settings()
 
 # Use NullPool for Supabase/pgbouncer compatibility
 # Set prepare_threshold=None to disable prepared statements (required for pgbouncer)
+_connect_args = {}
+if "postgresql" in settings.database_url:
+    _connect_args["prepare_threshold"] = None
+
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
     poolclass=NullPool,
-    connect_args={"prepare_threshold": None},
+    connect_args=_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(
