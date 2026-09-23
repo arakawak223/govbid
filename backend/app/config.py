@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     scrape_interval_hours: int = 24
     request_delay_seconds: float = 1.5
 
+    # 落札企業抽出（結果ページのサイト内クロール）
+    winner_min_amount: int = 5_000_000          # 対象とする委託料上限の下限
+    winner_crawl_delay_seconds: float = 0.7     # 同一ドメインへの間隔（1req/0.7s）
+    winner_max_pages_per_domain: int = 250      # 1ドメインあたりの取得ページ上限
+    winner_max_domains_concurrent: int = 8      # 同時に巡回するドメイン数
+    winner_cache_dir: str = ""                  # 空ならメモリキャッシュのみ
+
     # CORS - stored as string to avoid pydantic-settings JSON parsing issues
     cors_origins_str: str = "*"
 

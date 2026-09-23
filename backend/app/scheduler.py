@@ -8,6 +8,7 @@ from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.services.scraper_service import run_all_scrapers
 from app.services.notification_service import send_new_bids_notification
+from app.services.winner_service import run_winner_extraction
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -53,6 +54,23 @@ async def scheduled_scrape_job():
             logger.error(f"Error in scheduled scrape: {e}")
 
 
+async def scheduled_winner_extract_job():
+    """月次で落札企業抽出を実行する（手動トリガーと同じコードパス）"""
+    logger.info(f"Starting scheduled winner extraction at {datetime.utcnow()}")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            results = await run_winner_extraction(db)
+            logger.info(
+                f"Winner extraction completed: "
+                f"{results['targets']} targets, "
+                f"{results['extracted']} extracted, "
+                f"{results['saved']} saved"
+            )
+        except Exception as e:
+            logger.error(f"Error in scheduled winner extraction: {e}")
+
+
 def start_scheduler():
     """Start the background scheduler"""
     # Run daily at 6:00 AM JST (21:00 UTC previous day)
@@ -63,8 +81,19 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # 落札企業抽出は毎月15日 6:00 JST（日次スクレイプと時間帯を分けて負荷を分散）
+    scheduler.add_job(
+        scheduled_winner_extract_job,
+        CronTrigger(day=14, hour=21, minute=0),  # = 毎月15日 6:00 JST (21:00 UTC on the 14th)
+        id="monthly_winner_extract",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Scheduler started - daily scrape scheduled for 6:00 AM JST")
+    logger.info(
+        "Scheduler started - daily scrape at 6:00 AM JST, "
+        "monthly winner extraction on the 15th at 6:00 AM JST"
+    )
 
 
 def stop_scheduler():
