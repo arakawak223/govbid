@@ -85,3 +85,58 @@ class BidFilter(BaseModel):
 # Notification settings
 class NotificationSettings(BaseModel):
     notification_enabled: bool
+
+
+# 落札企業抽出 schemas
+class BidResultResponse(BaseModel):
+    id: str
+    bid_id: str | None = None
+    municipality: str
+    title: str
+    category: str | None = None
+    max_amount: int | None = None
+    winning_company: str
+    winner_label: str | None = None
+    award_amount: int | None = None
+    award_date: date | None = None
+    announcement_url: str | None = None
+    result_url: str
+    evidence: str | None = None
+    extract_source: str
+    match_method: str
+    is_verified: bool
+    scraped_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BidResultListResponse(BaseModel):
+    items: list[BidResultResponse]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+
+class CompanyRanking(BaseModel):
+    company: str
+    count: int
+
+
+class WinnerExtractRequest(BaseModel):
+    """落札企業抽出の実行条件（未指定時は運用既定値）"""
+    municipality: str | None = None
+    min_amount: int | None = None
+    since_days: int | None = None
+    limit: int | None = None
+    max_pages_per_domain: int | None = None
+
+
+class WinnerExtractTargets(BaseModel):
+    targets: int
+    min_amount: int
+    municipality: str | None = None
+    since_days: int | None = None

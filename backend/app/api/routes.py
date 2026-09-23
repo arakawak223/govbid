@@ -9,14 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database import get_db
-from app.models import User, Bid
+from app.models import User, Bid, BidResult
 from app.schemas import (
     UserCreate,
     UserResponse,
     Token,
     BidResponse,
     BidListResponse,
+    BidResultResponse,
+    BidResultListResponse,
+    CompanyRanking,
     NotificationSettings,
+    WinnerExtractRequest,
+    WinnerExtractTargets,
 )
 from app.api.deps import (
     get_password_hash,
@@ -277,3 +282,188 @@ async def get_supported_municipalities():
     """サポートされている自治体一覧取得"""
     from app.services.scraper_service import get_municipality_names
     return get_municipality_names()
+
+
+# =============================================================================
+# 落札企業抽出 (Bid Results)
+# =============================================================================
+
+@router.get("/results", response_model=BidResultListResponse)
+async def get_bid_results(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=1000),
+    municipality: str | None = None,
+    category: str | None = None,
+    company: str | None = Query(None, description="落札企業名（前株/後株・略記の揺れを吸収して部分一致）"),
+    search: str | None = Query(None, description="案件名の部分一致"),
+    match_method: str | None = Query(None, description="bid: 元案件と紐付き / orphan: 紐付かず"),
+):
+    """落札企業一覧取得"""
+    from app.services.winner_extract import company_key
+
+    query = select(BidResult)
+
+    if municipality:
+        query = query.where(BidResult.municipality == municipality)
+    if category:
+        query = query.where(BidResult.category == category)
+    if company:
+        key = company_key(company)
+        if key:
+            query = query.where(BidResult.company_key.ilike(f"%{key}%"))
+        else:
+            query = query.where(BidResult.winning_company.ilike(f"%{company}%"))
+    if search:
+        query = query.where(BidResult.title.ilike(f"%{search}%"))
+    if match_method:
+        query = query.where(BidResult.match_method == match_method)
+
+    count_query = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(count_query)).scalar() or 0
+
+    query = query.order_by(BidResult.scraped_at.desc(), BidResult.max_amount.desc().nullslast())
+    query = query.offset((page - 1) * per_page).limit(per_page)
+    results = (await db.execute(query)).scalars().all()
+
+    return BidResultListResponse(
+        items=results,
+        total=total,
+        page=page,
+        per_page=per_page,
+        pages=(total + per_page - 1) // per_page,
+    )
+
+
+@router.get("/results/companies", response_model=list[CompanyRanking])
+async def get_company_ranking(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = Query(20, ge=1, le=200),
+    municipality: str | None = None,
+):
+    """落札企業ランキング（件数順）"""
+    query = select(BidResult.winning_company, func.count().label("cnt"))
+    if municipality:
+        query = query.where(BidResult.municipality == municipality)
+    query = query.group_by(BidResult.winning_company).order_by(func.count().desc()).limit(limit)
+    rows = (await db.execute(query)).all()
+    return [CompanyRanking(company=row[0], count=row[1]) for row in rows]
+
+
+@router.get("/results/{result_id}", response_model=BidResultResponse)
+async def get_bid_result(
+    result_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """落札結果詳細取得"""
+    result = await db.execute(select(BidResult).where(BidResult.id == result_id))
+    bid_result = result.scalar_one_or_none()
+    if not bid_result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="落札結果が見つかりません",
+        )
+    return bid_result
+
+
+@router.get("/bids/{bid_id}/results", response_model=list[BidResultResponse])
+async def get_results_for_bid(
+    bid_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """特定案件の落札結果取得"""
+    result = await db.execute(
+        select(BidResult).where(BidResult.bid_id == bid_id).order_by(BidResult.scraped_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+# -----------------------------------------------------------------------------
+# 落札企業抽出の実行
+# -----------------------------------------------------------------------------
+
+_winner_status = {
+    "is_running": False,
+    "started_at": None,
+    "completed_at": None,
+    "result": None,
+    "error": None,
+}
+
+
+async def _run_winner_extraction_background(params: WinnerExtractRequest):
+    """バックグラウンドで落札企業抽出を実行する"""
+    from app.database import AsyncSessionLocal
+    from app.services.winner_service import run_winner_extraction
+    import datetime
+
+    global _winner_status
+    _winner_status.update({
+        "is_running": True,
+        "started_at": datetime.datetime.utcnow().isoformat(),
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    })
+
+    try:
+        async with AsyncSessionLocal() as db:
+            _winner_status["result"] = await run_winner_extraction(
+                db,
+                municipality=params.municipality,
+                min_amount=params.min_amount,
+                since_days=params.since_days,
+                limit=params.limit,
+                max_pages_per_domain=params.max_pages_per_domain,
+            )
+    except Exception as e:
+        _winner_status["error"] = str(e)
+    finally:
+        _winner_status["is_running"] = False
+        _winner_status["completed_at"] = datetime.datetime.utcnow().isoformat()
+
+
+@router.get("/winner-extract/targets", response_model=WinnerExtractTargets)
+async def get_winner_extract_targets(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    municipality: str | None = None,
+    min_amount: int | None = None,
+    since_days: int | None = None,
+):
+    """抽出対象の件数を事前確認する"""
+    from datetime import date, timedelta
+    from app.services.winner_service import select_targets
+
+    since = date.today() - timedelta(days=since_days) if since_days else None
+    targets = await select_targets(db, municipality, min_amount, since)
+    return WinnerExtractTargets(
+        targets=len(targets),
+        min_amount=min_amount if min_amount is not None else settings.winner_min_amount,
+        municipality=municipality,
+        since_days=since_days,
+    )
+
+
+@router.post("/winner-extract")
+async def run_winner_extract(params: WinnerExtractRequest | None = None):
+    """落札企業抽出の手動実行（バックグラウンド）"""
+    global _winner_status
+
+    if _winner_status["is_running"]:
+        return {
+            "status": "already_running",
+            "message": "落札企業抽出は既に実行中です",
+            "started_at": _winner_status["started_at"],
+        }
+
+    asyncio.create_task(_run_winner_extraction_background(params or WinnerExtractRequest()))
+    return {
+        "status": "started",
+        "message": "落札企業抽出をバックグラウンドで開始しました。/api/winner-extract/status で進捗を確認できます。",
+    }
+
+
+@router.get("/winner-extract/status")
+async def get_winner_extract_status():
+    """落札企業抽出の実行状況取得"""
+    return _winner_status

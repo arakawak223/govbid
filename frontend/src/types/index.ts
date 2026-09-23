@@ -42,6 +42,49 @@ export interface BidFilter {
   max_amount?: number;
 }
 
+export interface BidResult {
+  id: string;
+  bid_id: string | null;
+  municipality: string;
+  title: string;
+  category: string | null;
+  max_amount: number | null;
+  winning_company: string;
+  winner_label: string | null;
+  award_amount: number | null;
+  award_date: string | null;
+  announcement_url: string | null;
+  result_url: string;
+  evidence: string | null;
+  extract_source: string;
+  match_method: string;
+  is_verified: boolean;
+  scraped_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BidResultListResponse {
+  items: BidResult[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface BidResultFilter {
+  municipality?: string;
+  category?: string;
+  company?: string;
+  search?: string;
+  match_method?: string;
+}
+
+export interface CompanyRanking {
+  company: string;
+  count: number;
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;

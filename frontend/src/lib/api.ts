@@ -4,6 +4,10 @@ import type {
   Bid,
   BidListResponse,
   BidFilter,
+  BidResult,
+  BidResultListResponse,
+  BidResultFilter,
+  CompanyRanking,
   LoginCredentials,
   RegisterData,
   Token,
@@ -189,6 +193,126 @@ export const scrapeApi = {
 
   getMunicipalities: async (): Promise<string[]> => {
     const response = await api.get<string[]>("/scrape/municipalities");
+    return response.data;
+  },
+};
+
+// 落札企業抽出 API
+export const resultsApi = {
+  getList: async (
+    page: number = 1,
+    perPage: number = 20,
+    filters?: BidResultFilter
+  ): Promise<BidResultListResponse> => {
+    const params = new URLSearchParams();
+    params.append("page", page.toString());
+    params.append("per_page", perPage.toString());
+
+    if (filters?.municipality) {
+      params.append("municipality", filters.municipality);
+    }
+    if (filters?.category) {
+      params.append("category", filters.category);
+    }
+    if (filters?.company) {
+      params.append("company", filters.company);
+    }
+    if (filters?.search) {
+      params.append("search", filters.search);
+    }
+    if (filters?.match_method) {
+      params.append("match_method", filters.match_method);
+    }
+
+    const response = await api.get<BidResultListResponse>(
+      `/results?${params.toString()}`
+    );
+    return response.data;
+  },
+
+  getById: async (id: string): Promise<BidResult> => {
+    const response = await api.get<BidResult>(`/results/${id}`);
+    return response.data;
+  },
+
+  getForBid: async (bidId: string): Promise<BidResult[]> => {
+    const response = await api.get<BidResult[]>(`/bids/${bidId}/results`);
+    return response.data;
+  },
+
+  getCompanyRanking: async (
+    limit: number = 20,
+    municipality?: string
+  ): Promise<CompanyRanking[]> => {
+    const params = new URLSearchParams();
+    params.append("limit", limit.toString());
+    if (municipality) {
+      params.append("municipality", municipality);
+    }
+    const response = await api.get<CompanyRanking[]>(
+      `/results/companies?${params.toString()}`
+    );
+    return response.data;
+  },
+};
+
+export interface WinnerExtractParams {
+  municipality?: string;
+  min_amount?: number;
+  since_days?: number;
+  limit?: number;
+  max_pages_per_domain?: number;
+}
+
+export interface WinnerExtractTargets {
+  targets: number;
+  min_amount: number;
+  municipality: string | null;
+  since_days: number | null;
+}
+
+export interface WinnerExtractStatus {
+  is_running: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+  result: {
+    targets: number;
+    domains: number;
+    fetched_pages: number;
+    extracted: number;
+    saved: number;
+    duplicated: number;
+    errors: string[];
+  } | null;
+  error: string | null;
+}
+
+export const winnerExtractApi = {
+  getTargets: async (
+    params?: WinnerExtractParams
+  ): Promise<WinnerExtractTargets> => {
+    const query = new URLSearchParams();
+    if (params?.municipality) query.append("municipality", params.municipality);
+    if (params?.min_amount !== undefined)
+      query.append("min_amount", params.min_amount.toString());
+    if (params?.since_days !== undefined)
+      query.append("since_days", params.since_days.toString());
+
+    const response = await api.get<WinnerExtractTargets>(
+      `/winner-extract/targets?${query.toString()}`
+    );
+    return response.data;
+  },
+
+  run: async (
+    params?: WinnerExtractParams
+  ): Promise<{ status: string; message: string; started_at?: string }> => {
+    const response = await api.post("/winner-extract", params ?? {});
+    return response.data;
+  },
+
+  getStatus: async (): Promise<WinnerExtractStatus> => {
+    const response = await api.get<WinnerExtractStatus>("/winner-extract/status");
     return response.data;
   },
 };

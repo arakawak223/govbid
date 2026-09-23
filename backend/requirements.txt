@@ -15,6 +15,7 @@ httpx==0.26.0
 beautifulsoup4==4.12.3
 lxml==5.1.0
 playwright==1.41.0
+pymupdf==1.24.14  # 結果ページがPDF公表の自治体向け（未導入でもPDF以外は動作する）
 
 # Authentication
 python-jose[cryptography]==3.3.0
